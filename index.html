@@ -1,209 +1,121 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Форум NEON RUSSIA | CRMP Mobile</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://googleapis.com" rel="stylesheet">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Форум NEON RUSSIA | CRMP Mobile</title>
+	<link rel="stylesheet" href="style.css">
+	<link href="https://googleapis.com" rel="stylesheet">
 </head>
 <body>
 
-    <!-- Шапка сайта -->
-    <header class="header">
-        <div class="container header-inner">
-            <div class="logo">
-                NEON <span>RUSSIA</span>
-            </div>
-            <nav class="nav">
-                <a href="#" class="nav-link active">Форумы</a>
-                <a href="#" class="nav-link">Что нового</a>
-                <a href="#" class="nav-link">Пользователи</a>
-                <a href="#" class="nav-link">Донат</a>
-            </nav>
-            <div class="auth-buttons">
-                <button class="btn btn-login">Вход</button>
-                <button class="btn btn-register">Регистрация</button>
-            </div>
-        </div>
-    </header>
+	<header class="header">
+		<div class="container header-inner">
+			<a href="#" class="logo" onclick="showView('forums'); return false;">NEON <span>RUSSIA</span></a>
+			<nav class="nav">
+				<a href="#" class="nav-link active" id="nav-forums" onclick="showView('forums'); return false;">Форумы</a>
+				<a href="#" class="nav-link" id="nav-new" onclick="showView('new'); return false;">Что нового</a>
+				<a href="#" class="nav-link" id="nav-users" onclick="showView('users'); return false;">Пользователи</a>
+			</nav>
+			<div class="auth-buttons" id="auth-area"></div>
+		</div>
+	</header>
 
-    <!-- Основной контент -->
-    <main class="container main-layout">
-        
-        <!-- Левая колонка: Разделы форума -->
-        <div class="forum-content">
-            
-            <!-- Категория 1: Основной раздел -->
-            <section class="category-block">
-                <div class="category-header">
-                    <h2>⚡ Основной раздел</h2>
-                </div>
-                <div class="forum-list">
-                    <div class="forum-item">
-                        <div class="forum-icon unread">📢</div>
-                        <div class="forum-info">
-                            <a href="#" class="forum-title">Новости и обновления проекта</a>
-                            <p class="forum-desc">Актуальная информация о разработке, патчах и глобальных событиях.</p>
-                        </div>
-                        <div class="forum-stats">
-                            <div><span>42</span> тем</div>
-                            <div><span>1.8K</span> сообщ.</div>
-                        </div>
-                        <div class="forum-last-post">
-                            <a href="#" class="last-post-title">Обновление 2.5: Неоновый город</a>
-                            <div class="last-post-meta">Сегодня в 14:20 • <span class="role-admin">Admin_Neon</span></div>
-                        </div>
-                    </div>
+	<main class="container main-layout">
+		<div class="forum-content">
 
-                    <div class="forum-item">
-                        <div class="forum-icon">📜</div>
-                        <div class="forum-info">
-                            <a href="#" class="forum-title">Правила проекта</a>
-                            <p class="forum-desc">Общие правила серверов, форума, лидеров и администрации.</p>
-                        </div>
-                        <div class="forum-stats">
-                            <div><span>15</span> тем</div>
-                            <div><span>120</span> сообщ.</div>
-                        </div>
-                        <div class="forum-last-post">
-                            <a href="#" class="last-post-title">Единый свод правил ОПГ</a>
-                            <div class="last-post-meta">Вчера в 19:05 • <span class="role-ga">Chief_Admin</span></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+			<!-- Вкладка: Форумы -->
+			<div id="view-forums">
+				<div class="top-action-bar">
+					<span class="breadcrumb">Главная / Список форумов</span>
+					<button class="btn btn-register" onclick="openNewTopicModal()">+ Создать тему</button>
+				</div>
+				<div id="categories-container"></div>
+				<section class="category-block" id="user-topics-block" style="display: none;">
+					<div class="category-header"><h2>📝 Созданные темы</h2></div>
+					<div class="forum-list" id="custom-topics-list"></div>
+				</section>
+			</div>
 
-            <!-- Категория 2: Игровые серверы -->
-            <section class="category-block">
-                <div class="category-header">
-                    <h2>🌐 Игровые серверы</h2>
-                </div>
-                <div class="forum-list">
-                    <div class="forum-item">
-                        <div class="forum-icon unread server-1">01</div>
-                        <div class="forum-info">
-                            <a href="#" class="forum-title">Сервер №1 | CYBER</a>
-                            <p class="forum-desc">Жалобы, заявки на пост лидера, государственные и криминальные организации.</p>
-                        </div>
-                        <div class="forum-stats">
-                            <div><span>12.4K</span> тем</div>
-                            <div><span>89.2K</span> сообщ.</div>
-                        </div>
-                        <div class="forum-last-post">
-                            <a href="#" class="last-post-title">Заявление на пост Лидера УМВД</a>
-                            <div class="last-post-meta">2 мин. назад • <span class="role-user">Dima_Volkov</span></div>
-                        </div>
-                    </div>
+			<!-- Вкладка: Что нового -->
+			<div id="view-new" style="display: none;">
+				<div class="top-action-bar">
+					<span class="breadcrumb">Главная / Последняя активность</span>
+					<button class="btn btn-login" onclick="showView('forums')">← Назад к разделам</button>
+				</div>
+				<section class="category-block">
+					<div class="category-header"><h2>🔥 Последние сообщения на форуме</h2></div>
+					<div class="forum-list" id="whats-new-list">
+						<div class="widget-body" id="empty-new-msg" style="color: var(--text-muted); font-size: 13px;">
+							Пока никто не оставлял сообщений. Нажмите «+ Создать тему», чтобы начать общение!
+						</div>
+					</div>
+				</section>
+			</div>
 
-                    <div class="forum-item">
-                        <div class="forum-icon unread server-2">02</div>
-                        <div class="forum-info">
-                            <a href="#" class="forum-title">Сервер №2 | SYNTH</a>
-                            <p class="forum-desc">Жалобы, заявки на пост лидера, государственные и криминальные организации.</p>
-                        </div>
-                        <div class="forum-stats">
-                            <div><span>9.1K</span> тем</div>
-                            <div><span>64.5K</span> сообщ.</div>
-                        </div>
-                        <div class="forum-last-post">
-                            <a href="#" class="last-post-title">Жалоба на игрока №4821</a>
-                            <div class="last-post-meta">10 мин. назад • <span class="role-moder">Moder_Alex</span></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+			<!-- Вкладка: Пользователи -->
+			<div id="view-users" style="display: none;">
+				<div class="top-action-bar">
+					<span class="breadcrumb">Главная / Пользователи проекта</span>
+					<button class="btn btn-login" onclick="showView('forums')">← Назад к разделам</button>
+				</div>
+				<section class="category-block">
+					<div class="category-header"><h2>👥 Зарегистрированные участники</h2></div>
+					<div class="widget-body" id="users-directory">
+						<div class="user-card-row">
+							<div class="avatar neon-pink">A</div>
+							<div>
+								<div class="staff-name role-admin">Admin_Neon</div>
+								<div class="staff-role">Основатель проекта</div>
+							</div>
+						</div>
+					</div>
+				</section>
+			</div>
 
-            <!-- Категория 3: Технический раздел -->
-            <section class="category-block">
-                <div class="category-header">
-                    <h2>🛠️ Технический раздел</h2>
-                </div>
-                <div class="forum-list">
-                    <div class="forum-item">
-                        <div class="forum-icon">🐞</div>
-                        <div class="forum-info">
-                            <a href="#" class="forum-title">Сообщить о баге или недоработке</a>
-                            <p class="forum-desc">Проблемы с лаунчером, пропажа имущества, баги игрового мода.</p>
-                        </div>
-                        <div class="forum-stats">
-                            <div><span>3.2K</span> тем</div>
-                            <div><span>14.1K</span> сообщ.</div>
-                        </div>
-                        <div class="forum-last-post">
-                            <a href="#" class="last-post-title">Вылет при входе в автосалон</a>
-                            <div class="last-post-meta">Сегодня в 11:45 • <span class="role-tech">Tech_Spec</span></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+			<!-- Вкладка: Просмотр темы -->
+			<div id="view-topic" style="display: none;">
+				<div class="top-action-bar">
+					<span class="breadcrumb" id="topic-breadcrumb">Раздел / Тема</span>
+					<button class="btn btn-login" onclick="showView('forums')">← К списку разделов</button>
+				</div>
+				<section class="category-block">
+					<div class="category-header"><h2 id="topic-view-title">Название темы</h2></div>
+					<div id="topic-posts-container"></div>
+				</section>
+				<section class="category-block reply-box">
+					<div class="category-header"><h2>✍️ Написать ответ</h2></div>
+					<div class="widget-body">
+						<textarea id="reply-text" class="neon-input" rows="4" placeholder="Введите текст вашего сообщения..."></textarea>
+						<button class="btn btn-register" style="margin-top: 10px;" onclick="submitReply()">Отправить ответ</button>
+					</div>
+				</section>
+			</div>
 
-        </div>
+		</div>
 
-        <!-- Правая колонка: Сайдбар -->
-        <aside class="sidebar">
-            
-            <!-- Виджет: Команда форума -->
-            <div class="widget">
-                <div class="widget-header">Команда проекта в сети</div>
-                <div class="widget-body staff-list">
-                    <div class="staff-item">
-                        <div class="avatar neon-pink">A</div>
-                        <div>
-                            <div class="staff-name">Admin_Neon</div>
-                            <div class="staff-role role-admin">Основатель</div>
-                        </div>
-                    </div>
-                    <div class="staff-item">
-                        <div class="avatar neon-cyan">C</div>
-                        <div>
-                            <div class="staff-name">Chief_Admin</div>
-                            <div class="staff-role role-ga">Главный Администратор</div>
-                        </div>
-                    </div>
-                    <div class="staff-item">
-                        <div class="avatar neon-purple">T</div>
-                        <div>
-                            <div class="staff-name">Tech_Spec</div>
-                            <div class="staff-role role-tech">Тех. Специалист</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+		<aside class="sidebar">
+			<div class="widget">
+				<div class="widget-header">Команда проекта</div>
+				<div class="widget-body staff-list">
+					<div class="staff-item clickable" onclick="showToast('Admin_Neon — Основатель проекта')">
+						<div class="avatar neon-pink">A</div>
+						<div>
+							<div class="staff-name">Admin_Neon</div>
+							<div class="staff-role role-admin">Основатель</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</aside>
+	</main>
 
-            <!-- Виджет: Статистика форума -->
-            <div class="widget">
-                <div class="widget-header">Статистика форума</div>
-                <div class="widget-body stats-widget">
-                    <div class="stat-row">
-                        <span>Темы:</span>
-                        <strong>24,757</strong>
-                    </div>
-                    <div class="stat-row">
-                        <span>Сообщения:</span>
-                        <strong>169,720</strong>
-                    </div>
-                    <div class="stat-row">
-                        <span>Пользователи:</span>
-                        <strong>48,910</strong>
-                    </div>
-                    <div class="stat-row">
-                        <span>Новый участник:</span>
-                        <a href="#" class="new-user">Kizaru_Neon</a>
-                    </div>
-                </div>
-            </div>
+	<footer class="footer">
+		<div class="container"><p>© 2026 NEON RUSSIA CRMP. Все права защищены.</p></div>
+	</footer>
 
-        </aside>
-
-    </main>
-
-    <!-- Подвал -->
-    <footer class="footer">
-        <div class="container">
-            <p>© 2026 NEON RUSSIA CRMP. Все права защищены.</p>
-        </div>
-    </footer>
-
+	<div id="modals-container"></div>
+	<div class="toast" id="toast"></div>
+	<script src="script.js"></script>
 </body>
 </html>
