@@ -185,15 +185,47 @@ function showTab(t) {
 
 function renderUsers() {
 	const l = Object.values(db.users);
+	const canManage = currentUser && ['founder', 'co-founder', 'head-admin'].includes(getUserRole(currentUser).key);
+
 	document.getElementById('users-directory').innerHTML = l.length ? l.map(u => {
 		const r = getUserRole(u);
-		return `<div class="user-card-row"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
+		const selectHtml = canManage ? `
+			<select class="neon-input" style="width:auto; padding:4px 8px; margin-left:auto;" onchange="setUserRole('${safeKey(u.username)}', this.value)">
+				${ROLES.map(role => `<option value="${role.key}" ${role.key === r.key ? 'selected' : ''}>${role.label}</option>`).join('')}
+			</select>` : '';
+
+		return `<div class="user-card-row">
+			<div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div>
+			<div>
+				<div class="staff-name r-${r.key}">${u.username}</div>
+				<div class="staff-role r-${r.key}">${r.label}</div>
+			</div>
+			${selectHtml}
+		</div>`;
 	}).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`;
+}
+
+async function setUserRole(userKey, newRoleKey) {
+	if (!db.users[userKey]) return;
+	ROLES.forEach(r => db.users[userKey][r.key] = (r.key === newRoleKey));
+	await api(`users/${userKey}`, 'PUT', db.users[userKey]);
+	refreshUI();
+	showToast('Звание обновлено!');
 }
 
 function renderStaff() {
 	const b = document.querySelector('.sidebar .widget-body'); if (!b) return;
-	const s = Object.values(db.users).filter(u => getUserRole(u).key !== 'player');
+	const maxIndex = ROLES.findIndex(r => r.key === 'administrative-supervisor');
+
+	const s = Object.values(db.users)
+		.filter(u => {
+			const idx = ROLES.findIndex(r => r.key === getUserRole(u).key);
+			return idx !== -1 && idx <= maxIndex;
+		})
+		.sort((a, b) => {
+			return ROLES.findIndex(r => r.key === getUserRole(a).key) - ROLES.findIndex(r => r.key === getUserRole(b).key);
+		});
+
 	b.innerHTML = s.length ? s.map(u => {
 		const r = getUserRole(u);
 		return `<div class="staff-item"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
