@@ -1,5 +1,4 @@
-const DB_URL = 'https://neon-russia-default-rtdb.firebaseio.com';
-
+const DB_URL = 'https://firebaseio.com';
 
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
 let usersList = [];
@@ -27,19 +26,26 @@ const defaultTree = {
 let tree = defaultTree;
 
 async function syncCloud() {
-	if (!DB_URL.startsWith('http')) return;
 	try {
 		const res = await fetch(`${DB_URL}/forum.json`);
 		const data = await res.json();
 		if (data && data.tree) tree = data.tree;
-		if (data && data.users) usersList = data.users;
+		if (data && data.users) usersList = Object.values(data.users).filter(Boolean);
+		if (currentUser && !usersList.includes(currentUser.username)) {
+			await saveUserCloud(currentUser.username);
+		}
 		refreshCurrentView();
 	} catch (e) { console.error(e); }
 }
 
 async function saveCloud() {
-	if (!DB_URL.startsWith('http')) return showToast('Вставь ссылку Firebase в script.js!');
-	await fetch(`${DB_URL}/forum.json`, { method: 'PUT', body: JSON.stringify({ tree, users: usersList }) });
+	await fetch(`${DB_URL}/forum/tree.json`, { method: 'PUT', body: JSON.stringify(tree) });
+}
+
+async function saveUserCloud(u) {
+	const key = u.replace(/[.#$\[\]\/]/g, '_');
+	await fetch(`${DB_URL}/forum/users/${key}.json`, { method: 'PUT', body: JSON.stringify(u) });
+	if (!usersList.includes(u)) usersList.push(u);
 }
 
 function refreshCurrentView() {
@@ -64,7 +70,6 @@ function countStats(node) {
 	for (let c of (node.children || [])) { const sub = countStats(c); t += sub.t; p += sub.p; }
 	return { t, p };
 }
-
 function renderExplorer() {
 	const cur = findNode(pathStack[pathStack.length - 1]) || tree;
 	document.getElementById('btn-back').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
@@ -77,6 +82,7 @@ function renderExplorer() {
 		`<section class="category-block"><div class="category-header"><h2>💬 Темы раздела</h2></div><div class="forum-list">${(cur.topics || []).length ? cur.topics.map(top => `<div class="forum-item" onclick="openTopic('${top.id}')"><div class="forum-icon unread">💬</div><div class="forum-info"><span class="forum-title">${top.title}</span><p class="forum-desc">Автор: ${top.author}</p></div><div class="forum-stats"><div><span>${top.posts.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${top.posts[top.posts.length - 1].author}</span><div class="last-post-meta">${top.posts[top.posts.length - 1].time}</div></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted); font-size:13px;">Тем пока нет. Нажмите «+ Тема» или «+ Подраздел»!</div>`}</div></section>`;
 	document.getElementById('explorer-content').innerHTML = html;
 }
+
 function renderNodeItems(items) {
 	if (!items.length) return `<div class="widget-body" style="color:var(--muted); font-size:13px;">Пусто. Создайте первый подраздел!</div>`;
 	return items.map(it => {
@@ -125,14 +131,53 @@ function renderUsers() { document.getElementById('users-directory').innerHTML = 
 function renderNew() { let all = []; const col = n => { (n.topics || []).forEach(top => all.push({ top, sec: n.title })); (n.children || []).forEach(col); }; col(tree); document.getElementById('whats-new-list').innerHTML = all.length ? all.map(x => `<div class="forum-item"><div class="forum-icon unread">🆕</div><div class="forum-info"><span class="forum-title">${x.top.title}</span><p class="forum-desc">Автор: ${x.top.author} • ${x.sec}</p></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted); font-size:13px;">Тем пока нет.</div>`; }
 
 function updateAuthUI() { document.getElementById('auth-area').innerHTML = currentUser ? `<div class="user-badge"><span class="user-dot"></span><span>${currentUser.username}</span></div><button class="btn btn-login" onclick="logout()">Выйти</button>` : `<button class="btn btn-login" onclick="openModal('login-modal')">Вход</button><button class="btn btn-register" onclick="openModal('register-modal')">Регистрация</button>`; }
-async function authUser(u) { currentUser = { username: u }; localStorage.setItem('neon_user', JSON.stringify(currentUser)); if (!usersList.includes(u)) { usersList.push(u); await saveCloud(); } updateAuthUI(); refreshCurrentView(); }
+async function authUser(u) { currentUser = { username: u }; localStorage.setItem('neon_user', JSON.stringify(currentUser)); await saveUserCloud(u); updateAuthUI(); refreshCurrentView(); }
 function handleRegister(e) { e.preventDefault(); const u = document.getElementById('reg-username').value.trim(); authUser(u); closeModal('register-modal'); showToast('Аккаунт ' + u + ' создан!'); }
 function handleLogin(e) { e.preventDefault(); const u = document.getElementById('login-username').value.trim(); authUser(u); closeModal('login-modal'); showToast('Вы вошли как ' + u); }
 function logout() { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); }
+function initModals() {
+	document.getElementById('modals-container').innerHTML = `
+		<div class="modal-overlay" id="register-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Регистрация</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div>
+			<form onsubmit="handleRegister(event)">
+				<label class="input-label">Никнейм</label><input type="text" id="reg-username" class="neon-input" required>
+				<label class="input-label">Пароль</label><input type="password" class="neon-input" required>
+				<button type="submit" class="btn btn-register full-width">Создать</button>
+			</form>
+		</div></div>
+		<div class="modal-overlay" id="login-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Вход</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div>
+			<form onsubmit="handleLogin(event)">
+				<label class="input-label">Никнейм</label><input type="text" id="login-username" class="neon-input" required>
+				<label class="input-label">Пароль</label><input type="password" class="neon-input" required>
+				<button type="submit" class="btn btn-register full-width">Войти</button>
+			</form>
+		</div></div>
+		<div class="modal-overlay" id="sub-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Новый подраздел</h3><button class="modal-close" onclick="closeModal('sub-modal')">×</button></div>
+			<form onsubmit="handleCreateSub(event)">
+				<label class="input-label">Название</label><input type="text" id="sub-title" class="neon-input" required>
+				<label class="input-label">Описание</label><input type="text" id="sub-desc" class="neon-input">
+				<button type="submit" class="btn btn-register full-width">Создать</button>
+			</form>
+		</div></div>
+		<div class="modal-overlay" id="topic-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Новая тема</h3><button class="modal-close" onclick="closeModal('topic-modal')">×</button></div>
+			<form onsubmit="handleCreateTopic(event)">
+				<label class="input-label">Заголовок</label><input type="text" id="top-title" class="neon-input" required>
+				<label class="input-label">Сообщение</label><textarea id="top-body" class="neon-input" rows="4" required></textarea>
+				<button type="submit" class="btn btn-register full-width">Опубликовать</button>
+			</form>
+		</div></div>
+	`;
+}
 
-function initModals() { document.getElementById('modals-container').innerHTML = `<div class="modal-overlay" id="register-modal"><div class="modal-box"><div class="modal-header"><h3>Регистрация</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div><form onsubmit="handleRegister(event)"><label class="input-label">Никнейм</label><input type="text" id="reg-username" class="neon-input" required><label class="input-label">Пароль</label><input type="password" class="neon-input" required><button type="submit" class="btn btn-register full-width">Создать</button></form></div></div><div class="modal-overlay" id="login-modal"><div class="modal-box"><div class="modal-header"><h3>Вход</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div><form onsubmit="handleLogin(event)"><label class="input-label">Никнейм</label><input type="text" id="login-username" class="neon-input" required><label class="input-label">Пароль</label><input type="password" class="neon-input" required><button type="submit" class="btn btn-register full-width">Войти</button></form></div></div><div class="modal-overlay" id="sub-modal"><div class="modal-box"><div class="modal-header"><h3>Новый подраздел</h3><button class="modal-close" onclick="closeModal('sub-modal')">×</button></div><form onsubmit="handleCreateSub(event)"><label class="input-label">Название</label><input type="text" id="sub-title" class="neon-input" required><label class="input-label">Описание</label><input type="text" id="sub-desc" class="neon-input"><button type="submit" class="btn btn-register full-width">Создать</button></form></div></div><div class="modal-overlay" id="topic-modal"><div class="modal-box"><div class="modal-header"><h3>Новая тема</h3><button class="modal-close" onclick="closeModal('topic-modal')">×</button></div><form onsubmit="handleCreateTopic(event)"><label class="input-label">Заголовок</label><input type="text" id="top-title" class="neon-input" required><label class="input-label">Сообщение</label><textarea id="top-body" class="neon-input" rows="4" required></textarea><button type="submit" class="btn btn-register full-width">Опубликовать</button></form></div></div>`; }
 function openModal(id) { document.getElementById(id).style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
-initModals(); updateAuthUI(); renderExplorer(); syncCloud(); setInterval(syncCloud, 4000);
+initModals();
+updateAuthUI();
+renderExplorer();
+syncCloud();
+setInterval(syncCloud, 4000);
