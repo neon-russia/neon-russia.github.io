@@ -529,3 +529,13 @@ a {
 .sub-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .sub-tag { font-size: 11px; background: rgba(255, 0, 85, 0.14); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; color: #ff85a2; }
 .forum-item:hover .sub-tag { border-color: var(--pink); color: #fff; }
+/* Цвета должностей Neon Russia */
+.r-founder { color: #ff0055; font-weight: 800; text-shadow: 0 0 8px rgba(255, 0, 85, 0.7); }
+.r-co-founder { color: #ff2a7a; font-weight: 800; text-shadow: 0 0 8px rgba(255, 42, 122, 0.6); }
+.r-project-team { color: #d946ef; font-weight: 700; }
+.r-head-admin { color: #ff4500; font-weight: 700; }
+.r-co-head-admin { color: #ff8c00; font-weight: 700; }
+.r-technical-specialist { color: #00f3ff; font-weight: 700; text-shadow: 0 0 6px rgba(0, 243, 255, 0.5); }
+.r-administrative-supervisor { color: #00ff88; font-weight: 700; }
+.r-player { color: var(--muted); font-weight: 600; }
+
