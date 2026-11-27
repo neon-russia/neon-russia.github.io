@@ -1,5 +1,12 @@
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
 
+const serverSubs = [
+	{ icon: '⚖️', name: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию сервера.' },
+	{ icon: '🏛️', name: 'Государственные организации', desc: 'Правительство, УМВД, ГИБДД, ФСБ, Армия, Больница, СМИ.' },
+	{ icon: '🔫', name: 'Криминальные организации', desc: 'Арзамасская, Батыревская и Лыткаринская ОПГ.' },
+	{ icon: '👑', name: 'Заявления на пост лидера', desc: 'Открытые заявки на руководящие посты фракций.' }
+];
+
 const categoriesData = [
 	{
 		title: '⚡ Основной раздел',
@@ -11,8 +18,8 @@ const categoriesData = [
 	{
 		title: '🌐 Игровые серверы',
 		items: [
-			{ id: 's1', icon: '01', cls: 'server-1', name: 'Сервер №1 | CYBER', desc: 'Жалобы, заявки на пост лидера, государственные и криминальные организации.' },
-			{ id: 's2', icon: '02', cls: 'server-2', name: 'Сервер №2 | SYNTH', desc: 'Жалобы, заявки на пост лидера, государственные и криминальные организации.' }
+			{ id: 's1', icon: '01', cls: 'server-1', isServer: true, name: 'Сервер №1 | CYBER', desc: 'Игровой сервер №1. Выберите нужный подраздел:' },
+			{ id: 's2', icon: '02', cls: 'server-2', isServer: true, name: 'Сервер №2 | SYNTH', desc: 'Игровой сервер №2. Выберите нужный подраздел:' }
 		]
 	},
 	{
@@ -24,7 +31,7 @@ const categoriesData = [
 ];
 
 const counters = { news: 0, rules: 0, s1: 0, s2: 0, tech: 0 };
-const sectionNames = { news: 'Новости и обновления проекта', rules: 'Правила проекта', s1: 'Сервер №1 | CYBER', s2: 'Сервер №2 | SYNTH', tech: 'Технический раздел' };
+const sectionNames = { news: 'Новости и обновления', rules: 'Правила проекта', s1: 'Сервер №1 | CYBER', s2: 'Сервер №2 | SYNTH', tech: 'Технический раздел' };
 
 function initLayout() {
 	document.getElementById('categories-container').innerHTML = categoriesData.map(cat => `
@@ -32,9 +39,13 @@ function initLayout() {
 			<div class="category-header"><h2>${cat.title}</h2></div>
 			<div class="forum-list">
 				${cat.items.map(it => `
-					<div class="forum-item" onclick="showToast('В разделе «${it.name}» пока 0 тем. Нажмите «+ Создать тему»!')">
+					<div class="forum-item" onclick="${it.isServer ? `openServer('${it.name}')` : `showToast('В разделе «${it.name}» пока 0 тем. Нажмите «+ Создать тему»!')`}">
 						<div class="forum-icon ${it.cls}">${it.icon}</div>
-						<div class="forum-info"><span class="forum-title">${it.name}</span><p class="forum-desc">${it.desc}</p></div>
+						<div class="forum-info">
+							<span class="forum-title">${it.name}</span>
+							<p class="forum-desc">${it.desc}</p>
+							${it.isServer ? `<div class="sub-tags">${serverSubs.map(s => `<span class="sub-tag">${s.icon} ${s.name}</span>`).join('')}</div>` : ''}
+						</div>
 						<div class="forum-stats"><div><span id="stat-t-${it.id}">0</span> тем</div><div><span id="stat-p-${it.id}">0</span> сообщ.</div></div>
 						<div class="forum-last-post" id="last-${it.id}"><div class="last-post-meta">Нет сообщений</div></div>
 					</div>
@@ -77,6 +88,20 @@ function initLayout() {
 	`;
 }
 
+function openServer(serverName) {
+	document.getElementById('server-breadcrumb').innerText = `Форумы / ${serverName}`;
+	document.getElementById('server-view-title').innerText = serverName;
+	document.getElementById('server-subforums-list').innerHTML = serverSubs.map(sub => `
+		<div class="forum-item" onclick="showToast('Подраздел «${sub.name}» (${serverName}): пока 0 тем')">
+			<div class="forum-icon unread">${sub.icon}</div>
+			<div class="forum-info"><span class="forum-title">${sub.name}</span><p class="forum-desc">${sub.desc}</p></div>
+			<div class="forum-stats"><div><span>0</span> тем</div><div><span>0</span> сообщ.</div></div>
+			<div class="forum-last-post"><div class="last-post-meta">Нет сообщений</div></div>
+		</div>
+	`).join('');
+	showView('server');
+}
+
 function updateAuthUI() {
 	document.getElementById('auth-area').innerHTML = currentUser
 		? `<div class="user-badge"><span class="user-dot"></span><span>${currentUser.username}</span></div><button class="btn btn-login" onclick="logout()">Выйти</button>`
@@ -103,7 +128,7 @@ function handleLogin(e) {
 function logout() { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); showToast('Вы вышли из аккаунта'); }
 
 function showView(v) {
-	['forums', 'new', 'users', 'topic'].forEach(id => document.getElementById('view-' + id).style.display = (id === v) ? 'block' : 'none');
+	['forums', 'server', 'new', 'users', 'topic'].forEach(id => document.getElementById('view-' + id).style.display = (id === v) ? 'block' : 'none');
 	document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
 	if (document.getElementById('nav-' + v)) document.getElementById('nav-' + v).classList.add('active');
 }
@@ -140,20 +165,37 @@ function handleCreateTopic(e) {
 	counters[key] += 1;
 	document.getElementById('stat-t-' + key).innerText = counters[key];
 	document.getElementById('stat-p-' + key).innerText = counters[key];
-	document.getElementById('last-' + key).innerHTML = `<span class="last-post-title">${title}</span><div class="last-post-meta">${time} • <span class="role-user">${currentUser.username}</span></div>`;
+	document.getElementById('last-' + key).innerHTML = `
+		<span class="last-post-title">${title}</span>
+		<div class="last-post-meta">${time} • <span class="role-user">${currentUser.username}</span></div>
+	`;
 
 	document.getElementById('user-topics-block').style.display = 'block';
 	const item = document.createElement('div');
 	item.className = 'forum-item';
 	item.onclick = () => openTopic(sec, title, currentUser.username, body, time);
-	item.innerHTML = `<div class="forum-icon unread">💬</div><div class="forum-info"><span class="forum-title">${title}</span><p class="forum-desc">Раздел: ${sec}</p></div><div class="forum-stats"><div><span>1</span> тема</div><div><span>1</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${title}</span><div class="last-post-meta">${time} • ${currentUser.username}</div></div>`;
+	item.innerHTML = `
+		<div class="forum-icon unread">💬</div>
+		<div class="forum-info">
+			<span class="forum-title">${title}</span>
+			<p class="forum-desc">Раздел: ${sec}</p>
+		</div>
+		<div class="forum-stats">
+			<div><span>1</span> тема</div>
+			<div><span>1</span> сообщ.</div>
+		</div>
+		<div class="forum-last-post">
+			<span class="last-post-title">${title}</span>
+			<div class="last-post-meta">${time} • ${currentUser.username}</div>
+		</div>
+	`;
 	document.getElementById('custom-topics-list').prepend(item);
 
 	if (document.getElementById('empty-new-msg')) document.getElementById('empty-new-msg').remove();
 	const act = document.createElement('div');
 	act.className = 'forum-item';
 	act.onclick = () => openTopic(sec, title, currentUser.username, body, time);
-  	act.innerHTML = `
+	act.innerHTML = `
 		<div class="forum-icon unread">🆕</div>
 		<div class="forum-info">
 			<span class="forum-title">${title}</span>
