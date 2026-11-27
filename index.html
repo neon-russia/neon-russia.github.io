@@ -80,12 +80,8 @@
 				<section class="category-block">
 					<div class="category-header"><h2>👥 Зарегистрированные участники</h2></div>
 					<div class="widget-body" id="users-directory">
-						<div class="user-card-row">
-							<div class="avatar neon-pink">A</div>
-							<div>
-								<div class="staff-name role-admin">Admin_Neon</div>
-								<div class="staff-role">Основатель проекта</div>
-							</div>
+						<div id="empty-users-msg" style="color: var(--muted); font-size: 13px;">
+							Пока нет зарегистрированных участников. Станьте первым!
 						</div>
 					</div>
 				</section>
@@ -115,11 +111,8 @@
 		<aside class="sidebar">
 			<div class="widget">
 				<div class="widget-header">Команда проекта</div>
-				<div class="widget-body">
-					<div class="staff-item" onclick="showToast('Admin_Neon — Основатель проекта')">
-						<div class="avatar neon-pink">A</div>
-						<div><div class="staff-name">Admin_Neon</div><div class="staff-role role-admin">Основатель</div></div>
-					</div>
+				<div class="widget-body" id="staff-list">
+					<div style="color: var(--muted); font-size: 13px;">Список администрации пуст</div>
 				</div>
 			</div>
 		</aside>
