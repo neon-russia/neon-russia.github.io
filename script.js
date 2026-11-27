@@ -4,6 +4,27 @@ let db = { users: {}, nodes: {}, topics: {}, posts: {} };
 let pathStack = ['root'];
 let activeTopicId = null;
 
+const ROLES = [
+	{ key: 'founder', label: 'Основатель' },
+	{ key: 'co-founder', label: 'Со-основатель' },
+	{ key: 'project-team', label: 'Команда проекта' },
+	{ key: 'head-admin', label: 'Главный Администратор' },
+	{ key: 'co-head-admin', label: 'Зам. Главного Администратора' },
+	{ key: 'technical-specialist', label: 'Технический специалист' },
+	{ key: 'administrative-supervisor', label: 'Куратор администрации' },
+	{ key: 'player', label: 'Игрок' }
+];
+
+function makeRoleFlags() {
+	return { founder: false, 'co-founder': false, 'project-team': false, 'head-admin': false, 'co-head-admin': false, 'technical-specialist': false, 'administrative-supervisor': false, player: true };
+}
+
+function getUserRole(uObj) {
+	if (!uObj) return { key: 'player', label: 'Игрок' };
+	for (let r of ROLES) { if (uObj[r.key] === true) return r; }
+	return { key: 'player', label: 'Игрок' };
+}
+
 const seedNodes = {
 	cat_main: { id: 'cat_main', parentId: 'root', title: '⚡ Основной раздел', order: 1 },
 	news: { id: 'news', parentId: 'cat_main', title: 'Новости и обновления проекта', desc: 'Актуальная информация и патчи.', icon: '📢', order: 1 },
@@ -27,23 +48,22 @@ async function api(path, method = 'GET', body = null) {
 async function syncCloud() {
 	try {
 		const data = await api('');
-		if (!data || !data.nodes) {
-			await api('nodes', 'PUT', seedNodes);
-			db.nodes = seedNodes;
-		} else {
-			db.nodes = data.nodes || {};
-		}
+		if (!data || !data.nodes) { await api('nodes', 'PUT', seedNodes); db.nodes = seedNodes; }
+		else { db.nodes = data.nodes || {}; }
 		db.users = (data && data.users) ? data.users : {};
 		db.topics = (data && data.topics) ? data.topics : {};
 		db.posts = (data && data.posts) ? data.posts : {};
 
-		if (currentUser) {
-			const key = safeKey(currentUser.username);
-			if (!db.users[key]) {
-				const uObj = { username: currentUser.username, pass: currentUser.pass || '1234', role: 'Игрок' };
-				await api(`users/${key}`, 'PUT', uObj);
-				db.users[key] = uObj;
+		for (let k in db.users) {
+			if (typeof db.users[k].founder === 'undefined') {
+				const upgraded = { username: db.users[k].username || k, pass: db.users[k].pass || '1234', ...makeRoleFlags() };
+				db.users[k] = upgraded;
+				await api(`users/${k}`, 'PUT', upgraded);
 			}
+		}
+		if (currentUser && db.users[safeKey(currentUser.username)]) {
+			currentUser = db.users[safeKey(currentUser.username)];
+			localStorage.setItem('neon_user', JSON.stringify(currentUser));
 		}
 		refreshUI();
 	} catch (e) { console.error(e); }
@@ -53,24 +73,19 @@ function safeKey(str) { return str.toLowerCase().replace(/[.#$\[\]\/]/g, '_'); }
 function getChildren(pid) { return Object.values(db.nodes).filter(n => n.parentId === pid).sort((a, b) => (a.order || 99) - (b.order || 99)); }
 function getTopics(nid) { return Object.values(db.topics).filter(t => t.nodeId === nid).sort((a, b) => b.created - a.created); }
 function getPosts(tid) { return Object.values(db.posts).filter(p => p.topicId === tid).sort((a, b) => a.created - b.created); }
-
 function countStats(nid) {
-	let tList = getTopics(nid);
-	let t = tList.length;
-	let p = tList.reduce((sum, top) => sum + getPosts(top.id).length, 0);
-	for (let child of getChildren(nid)) {
-		const sub = countStats(child.id);
-		t += sub.t; p += sub.p;
-	}
+	let tList = getTopics(nid), t = tList.length, p = tList.reduce((s, top) => s + getPosts(top.id).length, 0);
+	for (let c of getChildren(nid)) { const sub = countStats(c.id); t += sub.t; p += sub.p; }
 	return { t, p };
 }
-
 function refreshUI() {
 	if (document.getElementById('tab-forums').style.display !== 'none') renderExplorer();
 	if (document.getElementById('tab-users').style.display !== 'none') renderUsers();
 	if (document.getElementById('tab-new').style.display !== 'none') renderNew();
 	if (document.getElementById('tab-topic').style.display !== 'none' && activeTopicId) renderPosts();
+	renderStaff();
 }
+
 function renderExplorer() {
 	const curId = pathStack[pathStack.length - 1];
 	const curTitle = curId === 'root' ? 'Главная' : (db.nodes[curId]?.title || 'Раздел');
@@ -82,8 +97,7 @@ function renderExplorer() {
 	if (curId === 'root') {
 		html = getChildren('root').map(cat => `<section class="category-block"><div class="category-header" style="display:flex;justify-content:space-between;align-items:center;"><h2>${cat.title}</h2><button class="btn btn-login" style="padding:4px 10px;font-size:11px;" onclick="openSubModal('${cat.id}')">+ Подраздел</button></div><div class="forum-list">${renderNodes(getChildren(cat.id))}</div></section>`).join('');
 	} else {
-		const subs = getChildren(curId);
-		const tops = getTopics(curId);
+		const subs = getChildren(curId), tops = getTopics(curId);
 		if (subs.length) html += `<section class="category-block"><div class="category-header"><h2>📁 Подразделы: ${curTitle}</h2></div><div class="forum-list">${renderNodes(subs)}</div></section>`;
 		html += `<section class="category-block"><div class="category-header"><h2>💬 Темы раздела</h2></div><div class="forum-list">${tops.length ? tops.map(t => { const ps = getPosts(t.id), last = ps[ps.length - 1] || {}; return `<div class="forum-item" onclick="openTopic('${t.id}')"><div class="forum-icon unread">💬</div><div class="forum-info"><span class="forum-title">${t.title}</span><p class="forum-desc">Автор: ${t.author}</p></div><div class="forum-stats"><div><span>${ps.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${last.author || t.author}</span><div class="last-post-meta">${last.time || ''}</div></div></div>`; }).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет. Нажмите «+ Тема» или «+ Подраздел»!</div>`}</div></section>`;
 	}
@@ -126,13 +140,19 @@ async function handleCreateTopic(e) {
 	await Promise.all([api(`topics/${tid}`, 'PUT', top), api(`posts/${pid}`, 'PUT', post)]);
 	showToast('Тема опубликована в базу!');
 }
-
 function openTopic(tid) {
 	activeTopicId = tid; const top = db.topics[tid];
 	document.getElementById('topic-breadcrumb').innerText = pathStack.map(id => id === 'root' ? 'Главная' : db.nodes[id]?.title).join(' / ') + ' / ' + top.title;
 	document.getElementById('topic-view-title').innerText = top.title; renderPosts(); showTab('topic');
 }
-function renderPosts() { document.getElementById('topic-posts-container').innerHTML = getPosts(activeTopicId).map(p => `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name">${p.author}</div><div class="role-badge">Игрок</div></div><div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`).join(''); }
+
+function renderPosts() {
+	document.getElementById('topic-posts-container').innerHTML = getPosts(activeTopicId).map(p => {
+		const r = getUserRole(db.users[safeKey(p.author)]);
+		return `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name r-${r.key}">${p.author}</div><div class="role-badge r-${r.key}">${r.label}</div></div><div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`;
+	}).join('');
+}
+
 async function submitReply() {
 	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
 	const inp = document.getElementById('reply-text'); if (!inp.value.trim()) return;
@@ -144,17 +164,37 @@ async function submitReply() {
 function closeTopic() { activeTopicId = null; showTab('forums'); renderExplorer(); }
 
 function showTab(t) { ['forums', 'new', 'users', 'topic'].forEach(id => document.getElementById('tab-' + id).style.display = (id === t) ? 'block' : 'none'); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); if (document.getElementById('nav-' + t)) document.getElementById('nav-' + t).classList.add('active'); refreshUI(); }
-function renderUsers() { const list = Object.values(db.users); document.getElementById('users-directory').innerHTML = list.length ? list.map(u => `<div class="user-card-row"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name">${u.username}</div><div class="staff-role">${u.role || 'Участник'}</div></div></div>`).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`; }
+
+function renderUsers() {
+	const list = Object.values(db.users);
+	document.getElementById('users-directory').innerHTML = list.length ? list.map(u => {
+		const r = getUserRole(u);
+		return `<div class="user-card-row"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
+	}).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`;
+}
+
+function renderStaff() {
+	const box = document.querySelector('.sidebar .widget-body');
+	if (!box) return;
+	const staff = Object.values(db.users).filter(u => getUserRole(u).key !== 'player');
+	box.innerHTML = staff.length ? staff.map(u => {
+		const r = getUserRole(u);
+		return `<div class="staff-item"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
+	}).join('') : `<div style="color:var(--muted);font-size:13px;">Список администрации пуст</div>`;
+}
+
 function renderNew() { const list = Object.values(db.topics).sort((a, b) => b.created - a.created); document.getElementById('whats-new-list').innerHTML = list.length ? list.map(t => `<div class="forum-item"><div class="forum-icon unread">🆕</div><div class="forum-info"><span class="forum-title">${t.title}</span><p class="forum-desc">Автор: ${t.author} • ${db.nodes[t.nodeId]?.title || ''}</p></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет.</div>`; }
 
 function updateAuthUI() { document.getElementById('auth-area').innerHTML = currentUser ? `<div class="user-badge"><span class="user-dot"></span><span>${currentUser.username}</span></div><button class="btn btn-login" onclick="logout()">Выйти</button>` : `<button class="btn btn-login" onclick="openModal('login-modal')">Вход</button><button class="btn btn-register" onclick="openModal('register-modal')">Регистрация</button>`; }
+
 async function handleRegister(e) {
 	e.preventDefault(); const u = document.getElementById('reg-username').value.trim(), pass = document.getElementById('reg-pass').value, k = safeKey(u);
 	if (db.users[k]) return showToast('Этот никнейм уже занят!');
-	const uObj = { username: u, pass, role: 'Игрок' }; db.users[k] = uObj; currentUser = uObj;
+	const uObj = { username: u, pass, ...makeRoleFlags() }; db.users[k] = uObj; currentUser = uObj;
 	localStorage.setItem('neon_user', JSON.stringify(uObj)); await api(`users/${k}`, 'PUT', uObj);
 	closeModal('register-modal'); updateAuthUI(); refreshUI(); showToast('Аккаунт ' + u + ' зарегистрирован!');
 }
+
 async function handleLogin(e) {
 	e.preventDefault(); const u = document.getElementById('login-username').value.trim(), pass = document.getElementById('login-pass').value, k = safeKey(u);
 	const found = db.users[k];
@@ -164,40 +204,13 @@ async function handleLogin(e) {
 	closeModal('login-modal'); updateAuthUI(); refreshUI(); showToast('Добро пожаловать, ' + found.username + '!');
 }
 function logout() { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); }
+
 function initModals() {
 	document.getElementById('modals-container').innerHTML = `
-		<div class="modal-overlay" id="register-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Регистрация</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div>
-			<form onsubmit="handleRegister(event)">
-				<label class="input-label">Никнейм</label><input type="text" id="reg-username" class="neon-input" required>
-				<label class="input-label">Пароль</label><input type="password" id="reg-pass" class="neon-input" required>
-				<button type="submit" class="btn btn-register full-width">Создать аккаунт</button>
-			</form>
-		</div></div>
-		<div class="modal-overlay" id="login-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Вход</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div>
-			<form onsubmit="handleLogin(event)">
-				<label class="input-label">Никнейм</label><input type="text" id="login-username" class="neon-input" required>
-				<label class="input-label">Пароль</label><input type="password" id="login-pass" class="neon-input" required>
-				<button type="submit" class="btn btn-register full-width">Войти</button>
-			</form>
-		</div></div>
-		<div class="modal-overlay" id="sub-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Новый подраздел</h3><button class="modal-close" onclick="closeModal('sub-modal')">×</button></div>
-			<form onsubmit="handleCreateSub(event)">
-				<label class="input-label">Название</label><input type="text" id="sub-title" class="neon-input" required>
-				<label class="input-label">Описание</label><input type="text" id="sub-desc" class="neon-input">
-				<button type="submit" class="btn btn-register full-width">Создать</button>
-			</form>
-		</div></div>
-		<div class="modal-overlay" id="topic-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Новая тема</h3><button class="modal-close" onclick="closeModal('topic-modal')">×</button></div>
-			<form onsubmit="handleCreateTopic(event)">
-				<label class="input-label">Заголовок</label><input type="text" id="top-title" class="neon-input" required>
-				<label class="input-label">Сообщение</label><textarea id="top-body" class="neon-input" rows="4" required></textarea>
-				<button type="submit" class="btn btn-register full-width">Опубликовать</button>
-			</form>
-		</div></div>
+		<div class="modal-overlay" id="register-modal"><div class="modal-box"><div class="modal-header"><h3>Регистрация</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div><form onsubmit="handleRegister(event)"><label class="input-label">Никнейм</label><input type="text" id="reg-username" class="neon-input" required><label class="input-label">Пароль</label><input type="password" id="reg-pass" class="neon-input" required><button type="submit" class="btn btn-register full-width">Создать аккаунт</button></form></div></div>
+		<div class="modal-overlay" id="login-modal"><div class="modal-box"><div class="modal-header"><h3>Вход</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div><form onsubmit="handleLogin(event)"><label class="input-label">Никнейм</label><input type="text" id="login-username" class="neon-input" required><label class="input-label">Пароль</label><input type="password" id="login-pass" class="neon-input" required><button type="submit" class="btn btn-register full-width">Войти</button></form></div></div>
+		<div class="modal-overlay" id="sub-modal"><div class="modal-box"><div class="modal-header"><h3>Новый подраздел</h3><button class="modal-close" onclick="closeModal('sub-modal')">×</button></div><form onsubmit="handleCreateSub(event)"><label class="input-label">Название</label><input type="text" id="sub-title" class="neon-input" required><label class="input-label">Описание</label><input type="text" id="sub-desc" class="neon-input"><button type="submit" class="btn btn-register full-width">Создать</button></form></div></div>
+		<div class="modal-overlay" id="topic-modal"><div class="modal-box"><div class="modal-header"><h3>Новая тема</h3><button class="modal-close" onclick="closeModal('topic-modal')">×</button></div><form onsubmit="handleCreateTopic(event)"><label class="input-label">Заголовок</label><input type="text" id="top-title" class="neon-input" required><label class="input-label">Сообщение</label><textarea id="top-body" class="neon-input" rows="4" required></textarea><button type="submit" class="btn btn-register full-width">Опубликовать</button></form></div></div>
 	`;
 }
 
@@ -205,7 +218,4 @@ function openModal(id) { document.getElementById(id).style.display = 'flex'; }
 function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
-initModals();
-updateAuthUI();
-syncCloud();
-setInterval(syncCloud, 3000);
+initModals(); updateAuthUI(); syncCloud(); setInterval(syncCloud, 3000);
