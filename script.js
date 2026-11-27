@@ -2,6 +2,7 @@ const DB = 'https://neon-russia-default-rtdb.firebaseio.com/';
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
 let db = { users: {}, nodes: {}, subtabs: {}, topics: {}, posts: {} };
 let pathStack = ['root'];
+let activeSubtabId = null;
 let activeTopicId = null;
 
 const ROLES = [
@@ -81,6 +82,7 @@ function countStats(nid) {
 	return { t, p };
 }
 function refreshUI() {
+	if (document.getElementById('tab-subtab').style.display !== 'none' && activeSubtabId) renderSubtabPosts();
 	if (document.getElementById('tab-forums').style.display !== 'none') renderExplorer();
 	if (document.getElementById('tab-users').style.display !== 'none') renderUsers();
 	if (document.getElementById('tab-new').style.display !== 'none') renderNew();
@@ -143,24 +145,33 @@ async function handleCreateSubtab(e) {
 
 function openSubtab(id) {
 	const st = db.subtabs[id]; if (!st) return;
+	activeSubtabId = id;
 	document.getElementById('subtab-breadcrumb').innerText = pathStack.map(x => x === 'root' ? 'Главная' : db.nodes[x]?.title).join(' / ') + ' / ' + st.title;
 	document.getElementById('subtab-view-title').innerText = st.title;
 	document.getElementById('subtab-view-body').innerHTML = st.text.replace(/\n/g, '<br>');
+	renderSubtabPosts();
 	showTab('subtab');
 }
-function closeSubtab() { showTab('forums'); renderExplorer(); }
-function openTopicModal() { if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); } openModal('topic-modal'); }
-async function handleCreateTopic(e) {
-	e.preventDefault();
-	const now = Date.now(), tid = 't_' + now, pid = 'p_' + now, nid = pathStack[pathStack.length - 1];
-	const time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	const top = { id: tid, nodeId: nid, title: document.getElementById('top-title').value.trim(), author: currentUser.username, created: now };
-	const post = { id: pid, topicId: tid, author: currentUser.username, text: document.getElementById('top-body').value.trim(), time, created: now };
-	db.topics[tid] = top; db.posts[pid] = post;
-	closeModal('topic-modal'); e.target.reset(); renderExplorer();
-	await Promise.all([api(`topics/${tid}`, 'PUT', top), api(`posts/${pid}`, 'PUT', post)]);
-	showToast('Тема опубликована в базу!');
+
+function renderSubtabPosts() {
+	const list = getPosts(activeSubtabId);
+	document.getElementById('subtab-replies-block').style.display = list.length ? 'block' : 'none';
+	document.getElementById('subtab-posts-container').innerHTML = list.map(p => {
+		const r = getUserRole(db.users[safeKey(p.author)]);
+		return `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name r-${r.key}">${p.author}</div><div class="role-badge r-${r.key}">${r.label}</div></div><div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`;
+	}).join('');
 }
+
+async function submitSubtabReply() {
+	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
+	const inp = document.getElementById('subtab-reply-text'); if (!inp.value.trim()) return;
+	const now = Date.now(), pid = 'p_' + now, time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	const post = { id: pid, topicId: activeSubtabId, author: currentUser.username, text: inp.value.trim(), time, created: now };
+	db.posts[pid] = post; inp.value = ''; renderSubtabPosts();
+	await api(`posts/${pid}`, 'PUT', post); showToast('Ответ отправлен!');
+}
+
+function closeSubtab() { activeSubtabId = null; showTab('forums'); renderExplorer(); }
 
 function openTopic(tid) {
 	activeTopicId = tid; const top = db.topics[tid];
