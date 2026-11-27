@@ -11,7 +11,10 @@
 
 	<header class="header">
 		<div class="container header-inner">
-			<a href="#" class="logo" onclick="showView('forums'); return false;">NEON <span>RUSSIA</span></a>
+			<a href="#" class="logo" onclick="showView('forums'); return false;">
+				<img src="logo.png" alt="NR" class="logo-img" onerror="this.style.display='none'">
+				<div>NEON <span>RUSSIA</span></div>
+			</a>
 			<nav class="nav">
 				<a href="#" class="nav-link active" id="nav-forums" onclick="showView('forums'); return false;">Форумы</a>
 				<a href="#" class="nav-link" id="nav-new" onclick="showView('new'); return false;">Что нового</a>
@@ -24,7 +27,7 @@
 	<main class="container main-layout">
 		<div class="forum-content">
 
-			<!-- Вкладка: Форумы -->
+			<!-- Вкладка: Главная -->
 			<div id="view-forums">
 				<div class="top-action-bar">
 					<span class="breadcrumb">Главная / Список форумов</span>
@@ -37,6 +40,21 @@
 				</section>
 			</div>
 
+			<!-- Вкладка: Подразделы сервера -->
+			<div id="view-server" style="display: none;">
+				<div class="top-action-bar">
+					<span class="breadcrumb" id="server-breadcrumb">Форумы / Сервер</span>
+					<div style="display: flex; gap: 8px;">
+						<button class="btn btn-login" onclick="showView('forums')">← Назад</button>
+						<button class="btn btn-register" onclick="openNewTopicModal()">+ Создать тему</button>
+					</div>
+				</div>
+				<section class="category-block">
+					<div class="category-header"><h2 id="server-view-title">Сервер</h2></div>
+					<div class="forum-list" id="server-subforums-list"></div>
+				</section>
+			</div>
+
 			<!-- Вкладка: Что нового -->
 			<div id="view-new" style="display: none;">
 				<div class="top-action-bar">
@@ -46,7 +64,7 @@
 				<section class="category-block">
 					<div class="category-header"><h2>🔥 Последние сообщения на форуме</h2></div>
 					<div class="forum-list" id="whats-new-list">
-						<div class="widget-body" id="empty-new-msg" style="color: var(--text-muted); font-size: 13px;">
+						<div class="widget-body" id="empty-new-msg" style="color: var(--muted); font-size: 13px;">
 							Пока никто не оставлял сообщений. Нажмите «+ Создать тему», чтобы начать общение!
 						</div>
 					</div>
@@ -83,7 +101,7 @@
 					<div class="category-header"><h2 id="topic-view-title">Название темы</h2></div>
 					<div id="topic-posts-container"></div>
 				</section>
-				<section class="category-block reply-box">
+				<section class="category-block">
 					<div class="category-header"><h2>✍️ Написать ответ</h2></div>
 					<div class="widget-body">
 						<textarea id="reply-text" class="neon-input" rows="4" placeholder="Введите текст вашего сообщения..."></textarea>
@@ -97,23 +115,17 @@
 		<aside class="sidebar">
 			<div class="widget">
 				<div class="widget-header">Команда проекта</div>
-				<div class="widget-body staff-list">
-					<div class="staff-item clickable" onclick="showToast('Admin_Neon — Основатель проекта')">
+				<div class="widget-body">
+					<div class="staff-item" onclick="showToast('Admin_Neon — Основатель проекта')">
 						<div class="avatar neon-pink">A</div>
-						<div>
-							<div class="staff-name">Admin_Neon</div>
-							<div class="staff-role role-admin">Основатель</div>
-						</div>
+						<div><div class="staff-name">Admin_Neon</div><div class="staff-role role-admin">Основатель</div></div>
 					</div>
 				</div>
 			</div>
 		</aside>
 	</main>
 
-	<footer class="footer">
-		<div class="container"><p>© 2026 NEON RUSSIA CRMP. Все права защищены.</p></div>
-	</footer>
-
+	<footer class="footer"><div class="container"><p>© 2026 NEON RUSSIA CRMP. Все права защищены.</p></div></footer>
 	<div id="modals-container"></div>
 	<div class="toast" id="toast"></div>
 	<script src="script.js"></script>
