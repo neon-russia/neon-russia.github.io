@@ -522,3 +522,10 @@ a {
 }
 
 .toast.show { opacity: 1; }
+
+/* Логотип с медведем и плашки подразделов */
+.logo { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.logo-img { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 14px var(--pink); object-fit: cover; }
+.sub-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.sub-tag { font-size: 11px; background: rgba(255, 0, 85, 0.14); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; color: #ff85a2; }
+.forum-item:hover .sub-tag { border-color: var(--pink); color: #fff; }
