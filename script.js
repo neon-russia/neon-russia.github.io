@@ -1,139 +1,168 @@
-const DB_URL = 'https://firebaseio.com';
-
+const DB = 'https://neon-russia-default-rtdb.firebaseio.com/';
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
-let usersList = [];
+let db = { users: {}, nodes: {}, topics: {}, posts: {} };
 let pathStack = ['root'];
-let activeTopic = null;
+let activeTopicId = null;
 
-const defaultTree = {
-	id: 'root', title: 'Главная', children: [
-		{ id: 'cat_main', title: '⚡ Основной раздел', children: [
-			{ id: 'news', title: 'Новости и обновления проекта', desc: 'Актуальная информация и патчи.', icon: '📢', children: [], topics: [] },
-			{ id: 'rules', title: 'Правила проекта', desc: 'Общие правила серверов и форума.', icon: '📜', children: [], topics: [] }
-		], topics: [] },
-		{ id: 'cat_srv', title: '🌐 Игровые серверы', children: [
-			{ id: 's1', title: 'Сервер №1 | MOSCOW', desc: 'Разделы первого сервера.', icon: '01', children: [
-				{ id: 's1_gos', title: 'Государственные организации', desc: 'ФСБ, УМВД, ГИБДД, Армия, Правительство.', icon: '🏛️', children: [
-					{ id: 's1_fsb', title: 'ФСБ', desc: 'Федеральная служба безопасности.', icon: '🛡️', children: [], topics: [] }
-				], topics: [] },
-				{ id: 's1_opg', title: 'Криминальные организации', desc: 'Арзамасская, Батыревская, Лыткаринская ОПГ.', icon: '🔫', children: [], topics: [] },
-				{ id: 's1_jb', title: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию.', icon: '⚖️', children: [], topics: [] }
-			], topics: [] },
-			{ id: 's2', title: 'Сервер №2 | Не работает!', desc: 'Разделы второго сервера.', icon: '02', children: [], topics: [] }
-		], topics: [] }
-	], topics: []
+const seedNodes = {
+	cat_main: { id: 'cat_main', parentId: 'root', title: '⚡ Основной раздел', order: 1 },
+	news: { id: 'news', parentId: 'cat_main', title: 'Новости и обновления проекта', desc: 'Актуальная информация и патчи.', icon: '📢', order: 1 },
+	rules: { id: 'rules', parentId: 'cat_main', title: 'Правила проекта', desc: 'Общие правила серверов и форума.', icon: '📜', order: 2 },
+	cat_srv: { id: 'cat_srv', parentId: 'root', title: '🌐 Игровые серверы', order: 2 },
+	s1: { id: 's1', parentId: 'cat_srv', title: 'Сервер №1 | MOSCOW', desc: 'Разделы первого сервера.', icon: '01', order: 1 },
+	s1_gos: { id: 's1_gos', parentId: 's1', title: 'Государственные организации', desc: 'ФСБ, УМВД, ГИБДД, Армия, Правительство.', icon: '🏛️', order: 1 },
+	s1_fsb: { id: 's1_fsb', parentId: 's1_gos', title: 'ФСБ', desc: 'Федеральная служба безопасности.', icon: '🛡️', order: 1 },
+	s1_opg: { id: 's1_opg', parentId: 's1', title: 'Криминальные организации', desc: 'Арзамасская, Батыревская, Лыткаринская ОПГ.', icon: '🔫', order: 2 },
+	s1_jb: { id: 's1_jb', parentId: 's1', title: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию.', icon: '⚖️', order: 3 },
+	s2: { id: 's2', parentId: 'cat_srv', title: 'Сервер №2 | Не работает!', desc: 'Разделы второго сервера.', icon: '02', order: 2 }
 };
-let tree = defaultTree;
+
+async function api(path, method = 'GET', body = null) {
+	const opts = { method };
+	if (body !== null) opts.body = JSON.stringify(body);
+	const res = await fetch(`${DB}/${path}.json`, opts);
+	return res.json();
+}
 
 async function syncCloud() {
 	try {
-		const res = await fetch(`${DB_URL}/forum.json`);
-		const data = await res.json();
-		if (data && data.tree) tree = data.tree;
-		if (data && data.users) usersList = Object.values(data.users).filter(Boolean);
-		if (currentUser && !usersList.includes(currentUser.username)) {
-			await saveUserCloud(currentUser.username);
+		const data = await api('');
+		if (!data || !data.nodes) {
+			await api('nodes', 'PUT', seedNodes);
+			db.nodes = seedNodes;
+		} else {
+			db.nodes = data.nodes || {};
 		}
-		refreshCurrentView();
+		db.users = (data && data.users) ? data.users : {};
+		db.topics = (data && data.topics) ? data.topics : {};
+		db.posts = (data && data.posts) ? data.posts : {};
+
+		if (currentUser) {
+			const key = safeKey(currentUser.username);
+			if (!db.users[key]) {
+				const uObj = { username: currentUser.username, pass: currentUser.pass || '1234', role: 'Игрок' };
+				await api(`users/${key}`, 'PUT', uObj);
+				db.users[key] = uObj;
+			}
+		}
+		refreshUI();
 	} catch (e) { console.error(e); }
 }
 
-async function saveCloud() {
-	await fetch(`${DB_URL}/forum/tree.json`, { method: 'PUT', body: JSON.stringify(tree) });
+function safeKey(str) { return str.toLowerCase().replace(/[.#$\[\]\/]/g, '_'); }
+function getChildren(pid) { return Object.values(db.nodes).filter(n => n.parentId === pid).sort((a, b) => (a.order || 99) - (b.order || 99)); }
+function getTopics(nid) { return Object.values(db.topics).filter(t => t.nodeId === nid).sort((a, b) => b.created - a.created); }
+function getPosts(tid) { return Object.values(db.posts).filter(p => p.topicId === tid).sort((a, b) => a.created - b.created); }
+
+function countStats(nid) {
+	let tList = getTopics(nid);
+	let t = tList.length;
+	let p = tList.reduce((sum, top) => sum + getPosts(top.id).length, 0);
+	for (let child of getChildren(nid)) {
+		const sub = countStats(child.id);
+		t += sub.t; p += sub.p;
+	}
+	return { t, p };
 }
 
-async function saveUserCloud(u) {
-	const key = u.replace(/[.#$\[\]\/]/g, '_');
-	await fetch(`${DB_URL}/forum/users/${key}.json`, { method: 'PUT', body: JSON.stringify(u) });
-	if (!usersList.includes(u)) usersList.push(u);
-}
-
-function refreshCurrentView() {
+function refreshUI() {
 	if (document.getElementById('tab-forums').style.display !== 'none') renderExplorer();
 	if (document.getElementById('tab-users').style.display !== 'none') renderUsers();
 	if (document.getElementById('tab-new').style.display !== 'none') renderNew();
-	if (document.getElementById('tab-topic').style.display !== 'none' && activeTopic) {
-		const cur = findNode(pathStack[pathStack.length - 1]);
-		activeTopic = (cur.topics || []).find(t => t.id === activeTopic.id);
-		if (activeTopic) renderPosts();
-	}
-}
-
-function findNode(id, node = tree) {
-	if (node.id === id) return node;
-	for (let c of (node.children || [])) { const f = findNode(id, c); if (f) return f; }
-	return null;
-}
-
-function countStats(node) {
-	let t = (node.topics || []).length, p = (node.topics || []).reduce((s, top) => s + (top.posts || []).length, 0);
-	for (let c of (node.children || [])) { const sub = countStats(c); t += sub.t; p += sub.p; }
-	return { t, p };
+	if (document.getElementById('tab-topic').style.display !== 'none' && activeTopicId) renderPosts();
 }
 function renderExplorer() {
-	const cur = findNode(pathStack[pathStack.length - 1]) || tree;
+	const curId = pathStack[pathStack.length - 1];
+	const curTitle = curId === 'root' ? 'Главная' : (db.nodes[curId]?.title || 'Раздел');
 	document.getElementById('btn-back').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
 	document.getElementById('btn-new-topic').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
-	document.getElementById('breadcrumbs').innerHTML = pathStack.map((id, idx) => `<span style="cursor:pointer; color:${idx === pathStack.length - 1 ? '#fff' : 'var(--muted)'}" onclick="jumpTo(${idx})">${findNode(id).title}</span>`).join(' / ');
+	document.getElementById('breadcrumbs').innerHTML = pathStack.map((id, i) => `<span style="cursor:pointer;color:${i === pathStack.length - 1 ? '#fff' : 'var(--muted)'}" onclick="jumpTo(${i})">${id === 'root' ? 'Главная' : (db.nodes[id]?.title || '')}</span>`).join(' / ');
 
-	let html = pathStack.length === 1
-		? (cur.children || []).map(cat => `<section class="category-block"><div class="category-header" style="display:flex; justify-content:space-between; align-items:center;"><h2>${cat.title}</h2><button class="btn btn-login" style="padding:4px 10px; font-size:11px;" onclick="openSubModal('${cat.id}')">+ Подраздел</button></div><div class="forum-list">${renderNodeItems(cat.children || [])}</div></section>`).join('')
-		: ((cur.children || []).length ? `<section class="category-block"><div class="category-header"><h2>📁 Подразделы: ${cur.title}</h2></div><div class="forum-list">${renderNodeItems(cur.children)}</div></section>` : '') +
-		`<section class="category-block"><div class="category-header"><h2>💬 Темы раздела</h2></div><div class="forum-list">${(cur.topics || []).length ? cur.topics.map(top => `<div class="forum-item" onclick="openTopic('${top.id}')"><div class="forum-icon unread">💬</div><div class="forum-info"><span class="forum-title">${top.title}</span><p class="forum-desc">Автор: ${top.author}</p></div><div class="forum-stats"><div><span>${top.posts.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${top.posts[top.posts.length - 1].author}</span><div class="last-post-meta">${top.posts[top.posts.length - 1].time}</div></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted); font-size:13px;">Тем пока нет. Нажмите «+ Тема» или «+ Подраздел»!</div>`}</div></section>`;
+	let html = '';
+	if (curId === 'root') {
+		html = getChildren('root').map(cat => `<section class="category-block"><div class="category-header" style="display:flex;justify-content:space-between;align-items:center;"><h2>${cat.title}</h2><button class="btn btn-login" style="padding:4px 10px;font-size:11px;" onclick="openSubModal('${cat.id}')">+ Подраздел</button></div><div class="forum-list">${renderNodes(getChildren(cat.id))}</div></section>`).join('');
+	} else {
+		const subs = getChildren(curId);
+		const tops = getTopics(curId);
+		if (subs.length) html += `<section class="category-block"><div class="category-header"><h2>📁 Подразделы: ${curTitle}</h2></div><div class="forum-list">${renderNodes(subs)}</div></section>`;
+		html += `<section class="category-block"><div class="category-header"><h2>💬 Темы раздела</h2></div><div class="forum-list">${tops.length ? tops.map(t => { const ps = getPosts(t.id), last = ps[ps.length - 1] || {}; return `<div class="forum-item" onclick="openTopic('${t.id}')"><div class="forum-icon unread">💬</div><div class="forum-info"><span class="forum-title">${t.title}</span><p class="forum-desc">Автор: ${t.author}</p></div><div class="forum-stats"><div><span>${ps.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${last.author || t.author}</span><div class="last-post-meta">${last.time || ''}</div></div></div>`; }).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет. Нажмите «+ Тема» или «+ Подраздел»!</div>`}</div></section>`;
+	}
 	document.getElementById('explorer-content').innerHTML = html;
 }
 
-function renderNodeItems(items) {
-	if (!items.length) return `<div class="widget-body" style="color:var(--muted); font-size:13px;">Пусто. Создайте первый подраздел!</div>`;
-	return items.map(it => {
-		const st = countStats(it), subs = (it.children || []).length ? `<div class="sub-tags">${it.children.map(s => `<span class="sub-tag">📁 ${s.title}</span>`).join('')}</div>` : '';
-		return `<div class="forum-item" onclick="openNode('${it.id}')"><div class="forum-icon ${(it.children || []).length ? 'unread' : ''}">${it.icon || '📁'}</div><div class="forum-info"><span class="forum-title">${it.title}</span><p class="forum-desc">${it.desc || 'Подраздел'}</p>${subs}</div><div class="forum-stats"><div><span>${st.t}</span> тем</div><div><span>${st.p}</span> сообщ.</div></div><div class="forum-last-post"><div class="last-post-meta">${(it.children || []).length ? 'Подразделов: ' + it.children.length : 'Открыть →'}</div></div></div>`;
+function renderNodes(list) {
+	if (!list.length) return `<div class="widget-body" style="color:var(--muted);font-size:13px;">Пусто. Создайте первый подраздел!</div>`;
+	return list.map(n => {
+		const st = countStats(n.id), subs = getChildren(n.id);
+		const tags = subs.length ? `<div class="sub-tags">${subs.map(s => `<span class="sub-tag">📁 ${s.title}</span>`).join('')}</div>` : '';
+		return `<div class="forum-item" onclick="openNode('${n.id}')"><div class="forum-icon ${subs.length ? 'unread' : ''}">${n.icon || '📁'}</div><div class="forum-info"><span class="forum-title">${n.title}</span><p class="forum-desc">${n.desc || 'Подраздел'}</p>${tags}</div><div class="forum-stats"><div><span>${st.t}</span> тем</div><div><span>${st.p}</span> сообщ.</div></div><div class="forum-last-post"><div class="last-post-meta">${subs.length ? 'Подразделов: ' + subs.length : 'Открыть →'}</div></div></div>`;
 	}).join('');
 }
 
 function openNode(id) { pathStack.push(id); showTab('forums'); renderExplorer(); }
-function jumpTo(idx) { pathStack = pathStack.slice(0, idx + 1); showTab('forums'); renderExplorer(); }
+function jumpTo(i) { pathStack = pathStack.slice(0, i + 1); showTab('forums'); renderExplorer(); }
 function goBack() { if (pathStack.length > 1) { pathStack.pop(); renderExplorer(); } }
 function goHome() { pathStack = ['root']; showTab('forums'); renderExplorer(); }
 
-let targetParentId = null;
-function openSubModal(pid = null) { targetParentId = pid || pathStack[pathStack.length - 1]; openModal('sub-modal'); }
+let targetPid = null;
+function openSubModal(pid = null) { targetPid = pid || pathStack[pathStack.length - 1]; openModal('sub-modal'); }
 async function handleCreateSub(e) {
-	e.preventDefault(); const p = findNode(targetParentId); p.children = p.children || [];
-	p.children.push({ id: 'n_' + Date.now(), title: document.getElementById('sub-title').value.trim(), desc: document.getElementById('sub-desc').value.trim(), icon: '📁', children: [], topics: [] });
-	closeModal('sub-modal'); e.target.reset(); renderExplorer(); await saveCloud(); showToast('Подраздел сохранён в облако!');
+	e.preventDefault();
+	const id = 'n_' + Date.now();
+	const node = { id, parentId: targetPid, title: document.getElementById('sub-title').value.trim(), desc: document.getElementById('sub-desc').value.trim(), icon: '📁', order: Date.now() };
+	db.nodes[id] = node; closeModal('sub-modal'); e.target.reset(); renderExplorer();
+	await api(`nodes/${id}`, 'PUT', node); showToast('Подраздел сохранён в базу!');
 }
 
 function openTopicModal() { if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); } openModal('topic-modal'); }
 async function handleCreateTopic(e) {
-	e.preventDefault(); const cur = findNode(pathStack[pathStack.length - 1]); cur.topics = cur.topics || [];
+	e.preventDefault();
+	const now = Date.now(), tid = 't_' + now, pid = 'p_' + now, nid = pathStack[pathStack.length - 1];
 	const time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	cur.topics.unshift({ id: 't_' + Date.now(), title: document.getElementById('top-title').value.trim(), author: currentUser.username, posts: [{ author: currentUser.username, text: document.getElementById('top-body').value.trim(), time }] });
-	closeModal('topic-modal'); e.target.reset(); renderExplorer(); await saveCloud(); showToast('Тема опубликована для всех!');
+	const top = { id: tid, nodeId: nid, title: document.getElementById('top-title').value.trim(), author: currentUser.username, created: now };
+	const post = { id: pid, topicId: tid, author: currentUser.username, text: document.getElementById('top-body').value.trim(), time, created: now };
+	db.topics[tid] = top; db.posts[pid] = post;
+	closeModal('topic-modal'); e.target.reset(); renderExplorer();
+	await Promise.all([api(`topics/${tid}`, 'PUT', top), api(`posts/${pid}`, 'PUT', post)]);
+	showToast('Тема опубликована в базу!');
 }
 
 function openTopic(tid) {
-	activeTopic = (findNode(pathStack[pathStack.length - 1]).topics || []).find(t => t.id === tid);
-	document.getElementById('topic-breadcrumb').innerText = pathStack.map(id => findNode(id).title).join(' / ') + ' / ' + activeTopic.title;
-	document.getElementById('topic-view-title').innerText = activeTopic.title; renderPosts(); showTab('topic');
+	activeTopicId = tid; const top = db.topics[tid];
+	document.getElementById('topic-breadcrumb').innerText = pathStack.map(id => id === 'root' ? 'Главная' : db.nodes[id]?.title).join(' / ') + ' / ' + top.title;
+	document.getElementById('topic-view-title').innerText = top.title; renderPosts(); showTab('topic');
 }
-function renderPosts() { document.getElementById('topic-posts-container').innerHTML = activeTopic.posts.map(p => `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name">${p.author}</div><div class="role-badge">Игрок</div></div><div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`).join(''); }
+function renderPosts() { document.getElementById('topic-posts-container').innerHTML = getPosts(activeTopicId).map(p => `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name">${p.author}</div><div class="role-badge">Игрок</div></div><div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`).join(''); }
 async function submitReply() {
 	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
 	const inp = document.getElementById('reply-text'); if (!inp.value.trim()) return;
-	activeTopic.posts.push({ author: currentUser.username, text: inp.value.trim(), time: 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
-	inp.value = ''; renderPosts(); await saveCloud(); showToast('Ответ отправлен!');
+	const now = Date.now(), pid = 'p_' + now, time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	const post = { id: pid, topicId: activeTopicId, author: currentUser.username, text: inp.value.trim(), time, created: now };
+	db.posts[pid] = post; inp.value = ''; renderPosts();
+	await api(`posts/${pid}`, 'PUT', post); showToast('Ответ сохранён!');
 }
-function closeTopic() { showTab('forums'); renderExplorer(); }
+function closeTopic() { activeTopicId = null; showTab('forums'); renderExplorer(); }
 
-function showTab(t) { ['forums', 'new', 'users', 'topic'].forEach(id => document.getElementById('tab-' + id).style.display = (id === t) ? 'block' : 'none'); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); if (document.getElementById('nav-' + t)) document.getElementById('nav-' + t).classList.add('active'); refreshCurrentView(); }
-function renderUsers() { document.getElementById('users-directory').innerHTML = usersList.length ? usersList.map(u => `<div class="user-card-row"><div class="avatar neon-pink">${u.charAt(0).toUpperCase()}</div><div><div class="staff-name">${u}</div><div class="staff-role">Участник</div></div></div>`).join('') : `<div style="color:var(--muted); font-size:13px;">Пока нет участников.</div>`; }
-function renderNew() { let all = []; const col = n => { (n.topics || []).forEach(top => all.push({ top, sec: n.title })); (n.children || []).forEach(col); }; col(tree); document.getElementById('whats-new-list').innerHTML = all.length ? all.map(x => `<div class="forum-item"><div class="forum-icon unread">🆕</div><div class="forum-info"><span class="forum-title">${x.top.title}</span><p class="forum-desc">Автор: ${x.top.author} • ${x.sec}</p></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted); font-size:13px;">Тем пока нет.</div>`; }
+function showTab(t) { ['forums', 'new', 'users', 'topic'].forEach(id => document.getElementById('tab-' + id).style.display = (id === t) ? 'block' : 'none'); document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active')); if (document.getElementById('nav-' + t)) document.getElementById('nav-' + t).classList.add('active'); refreshUI(); }
+function renderUsers() { const list = Object.values(db.users); document.getElementById('users-directory').innerHTML = list.length ? list.map(u => `<div class="user-card-row"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name">${u.username}</div><div class="staff-role">${u.role || 'Участник'}</div></div></div>`).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`; }
+function renderNew() { const list = Object.values(db.topics).sort((a, b) => b.created - a.created); document.getElementById('whats-new-list').innerHTML = list.length ? list.map(t => `<div class="forum-item"><div class="forum-icon unread">🆕</div><div class="forum-info"><span class="forum-title">${t.title}</span><p class="forum-desc">Автор: ${t.author} • ${db.nodes[t.nodeId]?.title || ''}</p></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет.</div>`; }
 
 function updateAuthUI() { document.getElementById('auth-area').innerHTML = currentUser ? `<div class="user-badge"><span class="user-dot"></span><span>${currentUser.username}</span></div><button class="btn btn-login" onclick="logout()">Выйти</button>` : `<button class="btn btn-login" onclick="openModal('login-modal')">Вход</button><button class="btn btn-register" onclick="openModal('register-modal')">Регистрация</button>`; }
-async function authUser(u) { currentUser = { username: u }; localStorage.setItem('neon_user', JSON.stringify(currentUser)); await saveUserCloud(u); updateAuthUI(); refreshCurrentView(); }
-function handleRegister(e) { e.preventDefault(); const u = document.getElementById('reg-username').value.trim(); authUser(u); closeModal('register-modal'); showToast('Аккаунт ' + u + ' создан!'); }
-function handleLogin(e) { e.preventDefault(); const u = document.getElementById('login-username').value.trim(); authUser(u); closeModal('login-modal'); showToast('Вы вошли как ' + u); }
+async function handleRegister(e) {
+	e.preventDefault(); const u = document.getElementById('reg-username').value.trim(), pass = document.getElementById('reg-pass').value, k = safeKey(u);
+	if (db.users[k]) return showToast('Этот никнейм уже занят!');
+	const uObj = { username: u, pass, role: 'Игрок' }; db.users[k] = uObj; currentUser = uObj;
+	localStorage.setItem('neon_user', JSON.stringify(uObj)); await api(`users/${k}`, 'PUT', uObj);
+	closeModal('register-modal'); updateAuthUI(); refreshUI(); showToast('Аккаунт ' + u + ' зарегистрирован!');
+}
+async function handleLogin(e) {
+	e.preventDefault(); const u = document.getElementById('login-username').value.trim(), pass = document.getElementById('login-pass').value, k = safeKey(u);
+	const found = db.users[k];
+	if (!found) return showToast('Аккаунт не найден. Нажмите «Регистрация»!');
+	if (found.pass && found.pass !== pass) return showToast('Неверный пароль!');
+	currentUser = found; localStorage.setItem('neon_user', JSON.stringify(found));
+	closeModal('login-modal'); updateAuthUI(); refreshUI(); showToast('Добро пожаловать, ' + found.username + '!');
+}
 function logout() { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); }
 function initModals() {
 	document.getElementById('modals-container').innerHTML = `
@@ -141,15 +170,15 @@ function initModals() {
 			<div class="modal-header"><h3>Регистрация</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div>
 			<form onsubmit="handleRegister(event)">
 				<label class="input-label">Никнейм</label><input type="text" id="reg-username" class="neon-input" required>
-				<label class="input-label">Пароль</label><input type="password" class="neon-input" required>
-				<button type="submit" class="btn btn-register full-width">Создать</button>
+				<label class="input-label">Пароль</label><input type="password" id="reg-pass" class="neon-input" required>
+				<button type="submit" class="btn btn-register full-width">Создать аккаунт</button>
 			</form>
 		</div></div>
 		<div class="modal-overlay" id="login-modal"><div class="modal-box">
 			<div class="modal-header"><h3>Вход</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div>
 			<form onsubmit="handleLogin(event)">
 				<label class="input-label">Никнейм</label><input type="text" id="login-username" class="neon-input" required>
-				<label class="input-label">Пароль</label><input type="password" class="neon-input" required>
+				<label class="input-label">Пароль</label><input type="password" id="login-pass" class="neon-input" required>
 				<button type="submit" class="btn btn-register full-width">Войти</button>
 			</form>
 		</div></div>
@@ -178,6 +207,5 @@ function showToast(msg) { const t = document.getElementById('toast'); t.innerTex
 
 initModals();
 updateAuthUI();
-renderExplorer();
 syncCloud();
-setInterval(syncCloud, 4000);
+setInterval(syncCloud, 3000);
