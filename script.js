@@ -5,14 +5,24 @@ let pathStack = ['root'], activeTopicId = null, activeSubtabId = null, targetPid
 
 const ROLES = [
 	{ key: 'founder', label: 'Основатель' }, { key: 'co-founder', label: 'Со-основатель' },
-	{ key: 'project-team', label: 'Команда проекта' }, { key: 'head-admin', label: 'Главный Администратор' },
-	{ key: 'co-head-admin', label: 'Зам. Главного Администратора' }, { key: 'technical-specialist', label: 'Технический специалист' },
-	{ key: 'administrative-supervisor', label: 'Куратор администрации' }, { key: 'player', label: 'Игрок' }
+	{ key: 'project-team', label: 'Команда проекта' }, { key: 'technical-specialist', label: 'Технический специалист' },
+	{ key: 'head-admin', label: 'Главный Администратор' }, { key: 'co-head-admin', label: 'Зам. Главного Администратора' },
+	{ key: 'administrative-supervisor', label: 'Куратор администрации' }, { key: 'gs-zgs', label: 'ГС/ЗГС' },
+	{ key: 'senior-admin', label: 'Старший администратор' }, { key: 'admin', label: 'Администратор' },
+	{ key: 'senior-moder', label: 'Старший модератор' }, { key: 'moder', label: 'Модератор' },
+	{ key: 'junior-moder', label: 'Младший модератор' }, { key: 'pr-manager', label: 'Пиар-менеджер' },
+	{ key: 'media-partner', label: 'Медиа-партнер' }, { key: 'player', label: 'Игрок' }
 ];
 
-const makeRoleFlags = () => ({ founder: false, 'co-founder': false, 'project-team': false, 'head-admin': false, 'co-head-admin': false, 'technical-specialist': false, 'administrative-supervisor': false, player: true });
-const getUserRole = u => (!u ? ROLES[7] : (ROLES.find(r => u[r.key] === true) || ROLES[7]));
+const makeRoleFlags = () => {
+	const flags = {};
+	ROLES.forEach(r => flags[r.key] = (r.key === 'player'));
+	return flags;
+};
+
+const getUserRole = u => (!u ? ROLES.at(-1) : (ROLES.find(r => u[r.key] === true) || ROLES.at(-1)));
 const safeKey = s => s.toLowerCase().replace(/[.#$\[\]\/]/g, '_');
+
 
 const seedNodes = {
 	cat_main: { id: 'cat_main', parentId: 'root', title: '⚡ Основной раздел', order: 1 },
