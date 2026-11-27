@@ -371,3 +371,154 @@ a {
         display: none;
     }
 }
+
+/* Верхняя панель и кнопки */
+.top-action-bar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.breadcrumb {
+	font-size: 13px;
+	color: var(--text-muted);
+}
+
+.full-width {
+	width: 100%;
+	margin-top: 15px;
+	padding: 11px;
+}
+
+.user-badge {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	background: rgba(255, 0, 85, 0.15);
+	border: 1px solid var(--neon-crimson);
+	padding: 6px 14px;
+	border-radius: 6px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.user-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #00ff88;
+	box-shadow: 0 0 8px #00ff88;
+}
+
+/* Всплывающие окна (Регистрация, Вход, Создание темы) */
+.modal-overlay {
+	display: none;
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.82);
+	backdrop-filter: blur(6px);
+	z-index: 999;
+	align-items: center;
+	justify-content: center;
+	padding: 15px;
+}
+
+.modal-box {
+	background: var(--bg-card);
+	border: 1.5px solid var(--neon-crimson);
+	box-shadow: 0 0 30px var(--neon-glow);
+	border-radius: 12px;
+	width: 100%;
+	max-width: 420px;
+	padding: 22px;
+}
+
+.modal-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 18px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.modal-close {
+	background: none;
+	border: none;
+	color: var(--text-muted);
+	font-size: 24px;
+	cursor: pointer;
+}
+
+.input-label {
+	display: block;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--text-muted);
+	margin: 12px 0 6px;
+}
+
+.neon-input {
+	width: 100%;
+	background: #0d0509;
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	padding: 10px 12px;
+	color: #fff;
+	font-family: 'Montserrat', sans-serif;
+	font-size: 13px;
+	outline: none;
+}
+
+.neon-input:focus {
+	border-color: var(--neon-crimson);
+	box-shadow: 0 0 10px var(--neon-glow);
+}
+
+/* Просмотр темы и всплывающие уведомления */
+.post-item {
+	display: grid;
+	grid-template-columns: 180px 1fr;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.post-author {
+	padding: 20px;
+	background: rgba(13, 5, 9, 0.5);
+	border-right: 1px solid var(--border-color);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+.role-badge {
+	font-size: 11px;
+	padding: 3px 10px;
+	border-radius: 4px;
+	background: rgba(255, 0, 85, 0.18);
+	border: 1px solid var(--neon-crimson);
+}
+
+.post-content { padding: 20px; font-size: 14px; }
+.post-date { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+.user-card-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+
+.toast {
+	position: fixed;
+	bottom: 25px;
+	right: 25px;
+	background: var(--bg-card);
+	border: 1px solid var(--neon-crimson);
+	box-shadow: 0 0 20px var(--neon-glow);
+	padding: 12px 20px;
+	border-radius: 8px;
+	font-size: 13px;
+	opacity: 0;
+	pointer-events: none;
+	transition: 0.3s;
+	z-index: 1000;
+}
+
+.toast.show { opacity: 1; }
