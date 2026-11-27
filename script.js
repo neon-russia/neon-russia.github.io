@@ -12,14 +12,14 @@ const defaultTree = {
 			{ id: 'rules', title: 'Правила проекта', desc: 'Общие правила серверов и форума.', icon: '📜', children: [], topics: [] }
 		], topics: [] },
 		{ id: 'cat_srv', title: '🌐 Игровые серверы', children: [
-			{ id: 's1', title: 'Сервер №1 | CYBER', desc: 'Разделы первого сервера.', icon: '01', children: [
+			{ id: 's1', title: 'Сервер №1 | MOSCOW', desc: 'Разделы первого сервера.', icon: '01', children: [
 				{ id: 's1_gos', title: 'Государственные организации', desc: 'ФСБ, УМВД, ГИБДД, Армия, Правительство.', icon: '🏛️', children: [
 					{ id: 's1_fsb', title: 'ФСБ', desc: 'Федеральная служба безопасности.', icon: '🛡️', children: [], topics: [] }
 				], topics: [] },
 				{ id: 's1_opg', title: 'Криминальные организации', desc: 'Арзамасская, Батыревская, Лыткаринская ОПГ.', icon: '🔫', children: [], topics: [] },
 				{ id: 's1_jb', title: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию.', icon: '⚖️', children: [], topics: [] }
 			], topics: [] },
-			{ id: 's2', title: 'Сервер №2 | SYNTH', desc: 'Разделы второго сервера.', icon: '02', children: [], topics: [] }
+			{ id: 's2', title: 'Сервер №2 | Не работает!', desc: 'Разделы второго сервера.', icon: '02', children: [], topics: [] }
 		], topics: [] }
 	], topics: []
 };
