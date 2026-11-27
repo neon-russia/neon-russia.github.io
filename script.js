@@ -1,105 +1,182 @@
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
+let usersList = JSON.parse(localStorage.getItem('neon_users')) || [];
 
-const serverSubs = [
-	{ icon: '⚖️', name: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию сервера.' },
-	{ icon: '🏛️', name: 'Государственные организации', desc: 'Правительство, УМВД, ГИБДД, ФСБ, Армия, Больница, СМИ.' },
-	{ icon: '🔫', name: 'Криминальные организации', desc: 'Арзамасская, Батыревская и Лыткаринская ОПГ.' },
-	{ icon: '👑', name: 'Заявления на пост лидера', desc: 'Открытые заявки на руководящие посты фракций.' }
-];
+const defaultTree = {
+	id: 'root', title: 'Главная', children: [
+		{ id: 'cat_main', title: '⚡ Основной раздел', desc: '', icon: '⚡', children: [
+			{ id: 'news', title: 'Новости и обновления проекта', desc: 'Актуальная информация и патчи.', icon: '📢', children: [], topics: [] },
+			{ id: 'rules', title: 'Правила проекта', desc: 'Общие правила серверов и форума.', icon: '📜', children: [], topics: [] }
+		], topics: [] },
+		{ id: 'cat_srv', title: '🌐 Игровые серверы', desc: '', icon: '🌐', children: [
+			{ id: 's1', title: 'Сервер №1 | CYBER', desc: 'Разделы первого сервера.', icon: '01', children: [
+				{ id: 's1_gos', title: 'Государственные организации', desc: 'ФСБ, УМВД, ГИБДД, Армия, Правительство.', icon: '🏛️', children: [
+					{ id: 's1_fsb', title: 'ФСБ', desc: 'Федеральная служба безопасности.', icon: '🛡️', children: [], topics: [] }
+				], topics: [] },
+				{ id: 's1_opg', title: 'Криминальные организации', desc: 'Арзамасская, Батыревская, Лыткаринская ОПГ.', icon: '🔫', children: [], topics: [] },
+				{ id: 's1_jb', title: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию.', icon: '⚖️', children: [], topics: [] }
+			], topics: [] },
+			{ id: 's2', title: 'Сервер №2 | SYNTH', desc: 'Разделы второго сервера.', icon: '02', children: [], topics: [] }
+		], topics: [] }
+	], topics: []
+};
 
-const categoriesData = [
-	{
-		title: '⚡ Основной раздел',
-		items: [
-			{ id: 'news', icon: '📢', cls: '', name: 'Новости и обновления проекта', desc: 'Актуальная информация о разработке, патчах и глобальных событиях.' },
-			{ id: 'rules', icon: '📜', cls: '', name: 'Правила проекта', desc: 'Общие правила серверов, форума, лидеров и администрации.' }
-		]
-	},
-	{
-		title: '🌐 Игровые серверы',
-		items: [
-			{ id: 's1', icon: '01', cls: 'server-1', isServer: true, name: 'Сервер №1 | CYBER', desc: 'Игровой сервер №1. Выберите нужный подраздел:' },
-			{ id: 's2', icon: '02', cls: 'server-2', isServer: true, name: 'Сервер №2 | SYNTH', desc: 'Игровой сервер №2. Выберите нужный подраздел:' }
-		]
-	},
-	{
-		title: '🛠️ Технический раздел',
-		items: [
-			{ id: 'tech', icon: '🐞', cls: '', name: 'Сообщить о баге или недоработке', desc: 'Проблемы с лаунчером, пропажа имущества, баги игрового мода.' }
-		]
-	}
-];
+let tree = JSON.parse(localStorage.getItem('neon_tree')) || defaultTree;
+let pathStack = ['root'];
+let activeTopic = null;
 
-const counters = { news: 0, rules: 0, s1: 0, s2: 0, tech: 0 };
-const sectionNames = { news: 'Новости и обновления', rules: 'Правила проекта', s1: 'Сервер №1 | CYBER', s2: 'Сервер №2 | SYNTH', tech: 'Технический раздел' };
+function saveTree() { localStorage.setItem('neon_tree', JSON.stringify(tree)); }
 
-function initLayout() {
-	document.getElementById('categories-container').innerHTML = categoriesData.map(cat => `
-		<section class="category-block">
-			<div class="category-header"><h2>${cat.title}</h2></div>
-			<div class="forum-list">
-				${cat.items.map(it => `
-					<div class="forum-item" onclick="${it.isServer ? `openServer('${it.name}')` : `showToast('В разделе «${it.name}» пока 0 тем. Нажмите «+ Создать тему»!')`}">
-						<div class="forum-icon ${it.cls}">${it.icon}</div>
-						<div class="forum-info">
-							<span class="forum-title">${it.name}</span>
-							<p class="forum-desc">${it.desc}</p>
-							${it.isServer ? `<div class="sub-tags">${serverSubs.map(s => `<span class="sub-tag">${s.icon} ${s.name}</span>`).join('')}</div>` : ''}
-						</div>
-						<div class="forum-stats"><div><span id="stat-t-${it.id}">0</span> тем</div><div><span id="stat-p-${it.id}">0</span> сообщ.</div></div>
-						<div class="forum-last-post" id="last-${it.id}"><div class="last-post-meta">Нет сообщений</div></div>
-					</div>
-				`).join('')}
-			</div>
-		</section>
-	`).join('');
-
-	document.getElementById('modals-container').innerHTML = `
-		<div class="modal-overlay" id="register-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Регистрация на NEON RUSSIA</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div>
-			<form onsubmit="handleRegister(event)">
-				<label class="input-label">Игровой никнейм (Nick_Name)</label><input type="text" id="reg-username" class="neon-input" placeholder="Ivan_Neon" required>
-				<label class="input-label">Электронная почта</label><input type="email" id="reg-email" class="neon-input" placeholder="example@mail.ru" required>
-				<label class="input-label">Пароль</label><input type="password" id="reg-password" class="neon-input" placeholder="Пароль" required>
-				<button type="submit" class="btn btn-register full-width">Создать аккаунт</button>
-			</form>
-		</div></div>
-		<div class="modal-overlay" id="login-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Вход в аккаунт</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div>
-			<form onsubmit="handleLogin(event)">
-				<label class="input-label">Ваш никнейм</label><input type="text" id="login-username" class="neon-input" placeholder="Ваш ник" required>
-				<label class="input-label">Пароль</label><input type="password" id="login-password" class="neon-input" placeholder="Пароль" required>
-				<button type="submit" class="btn btn-register full-width">Войти на форум</button>
-			</form>
-		</div></div>
-		<div class="modal-overlay" id="topic-modal"><div class="modal-box">
-			<div class="modal-header"><h3>Создать новую тему</h3><button class="modal-close" onclick="closeModal('topic-modal')">×</button></div>
-			<form onsubmit="handleCreateTopic(event)">
-				<label class="input-label">Раздел</label>
-				<select id="new-topic-section" class="neon-input">
-					<option value="news">Новости и обновления проекта</option><option value="rules">Правила проекта</option>
-					<option value="s1">Сервер №1 | CYBER</option><option value="s2">Сервер №2 | SYNTH</option><option value="tech">Технический раздел</option>
-				</select>
-				<label class="input-label">Заголовок темы</label><input type="text" id="new-topic-title" class="neon-input" placeholder="Заголовок" required>
-				<label class="input-label">Текст сообщения</label><textarea id="new-topic-body" class="neon-input" rows="4" placeholder="Текст..." required></textarea>
-				<button type="submit" class="btn btn-register full-width">Опубликовать тему</button>
-			</form>
-		</div></div>
-	`;
+function findNode(id, node = tree) {
+	if (node.id === id) return node;
+	for (let c of (node.children || [])) { const f = findNode(id, c); if (f) return f; }
+	return null;
 }
 
-function openServer(serverName) {
-	document.getElementById('server-breadcrumb').innerText = `Форумы / ${serverName}`;
-	document.getElementById('server-view-title').innerText = serverName;
-	document.getElementById('server-subforums-list').innerHTML = serverSubs.map(sub => `
-		<div class="forum-item" onclick="showToast('Подраздел «${sub.name}» (${serverName}): пока 0 тем')">
-			<div class="forum-icon unread">${sub.icon}</div>
-			<div class="forum-info"><span class="forum-title">${sub.name}</span><p class="forum-desc">${sub.desc}</p></div>
-			<div class="forum-stats"><div><span>0</span> тем</div><div><span>0</span> сообщ.</div></div>
-			<div class="forum-last-post"><div class="last-post-meta">Нет сообщений</div></div>
+function countStats(node) {
+	let t = (node.topics || []).length, p = (node.topics || []).reduce((s, top) => s + top.posts.length, 0);
+	for (let c of (node.children || [])) { const sub = countStats(c); t += sub.t; p += sub.p; }
+	return { t, p };
+}
+
+function renderExplorer() {
+	const cur = findNode(pathStack[pathStack.length - 1]);
+	document.getElementById('btn-back').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
+	document.getElementById('btn-new-topic').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
+
+	document.getElementById('breadcrumbs').innerHTML = pathStack.map((id, idx) => {
+		const n = findNode(id);
+		return `<span style="cursor:pointer; color:${idx === pathStack.length - 1 ? '#fff' : 'var(--muted)'}" onclick="jumpTo(${idx})">${n.title}</span>`;
+	}).join(' / ');
+
+	let html = '';
+	if (pathStack.length === 1) {
+		html = cur.children.map(cat => `
+			<section class="category-block">
+				<div class="category-header" style="display:flex; justify-content:space-between; align-items:center;">
+					<h2>${cat.title}</h2>
+					<button class="btn btn-login" style="padding:4px 10px; font-size:11px;" onclick="openSubModal('${cat.id}')">+ Подраздел</button>
+				</div>
+				<div class="forum-list">${renderNodeItems(cat.children)}</div>
+			</section>
+		`).join('');
+	} else {
+		if (cur.children.length) {
+			html += `<section class="category-block"><div class="category-header"><h2>📁 Подразделы: ${cur.title}</h2></div><div class="forum-list">${renderNodeItems(cur.children)}</div></section>`;
+		}
+		html += `<section class="category-block"><div class="category-header"><h2>💬 Темы раздела</h2></div><div class="forum-list">`;
+		html += cur.topics.length ? cur.topics.map(top => `
+			<div class="forum-item" onclick="openTopic('${top.id}')">
+				<div class="forum-icon unread">💬</div>
+				<div class="forum-info"><span class="forum-title">${top.title}</span><p class="forum-desc">Автор: ${top.author}</p></div>
+				<div class="forum-stats"><div><span>${top.posts.length}</span> сообщ.</div></div>
+				<div class="forum-last-post"><span class="last-post-title">${top.posts[top.posts.length - 1].author}</span><div class="last-post-meta">${top.posts[top.posts.length - 1].time}</div></div>
+			</div>
+		`).join('') : `<div class="widget-body" style="color:var(--muted); font-size:13px;">В этом разделе пока нет тем. Нажмите «+ Тема» или «+ Подраздел»!</div>`;
+		html += `</div></section>`;
+	}
+	document.getElementById('explorer-content').innerHTML = html;
+}
+
+function renderNodeItems(items) {
+	if (!items.length) return `<div class="widget-body" style="color:var(--muted); font-size:13px;">Пусто. Создайте первый подраздел!</div>`;
+	return items.map(it => {
+		const st = countStats(it);
+		const subs = it.children.length ? `<div class="sub-tags">${it.children.map(s => `<span class="sub-tag">📁 ${s.title}</span>`).join('')}</div>` : '';
+		return `
+			<div class="forum-item" onclick="openNode('${it.id}')">
+				<div class="forum-icon ${it.children.length ? 'unread' : ''}">${it.icon || '📁'}</div>
+				<div class="forum-info"><span class="forum-title">${it.title}</span><p class="forum-desc">${it.desc || 'Подраздел форума'}</p>${subs}</div>
+				<div class="forum-stats"><div><span>${st.t}</span> тем</div><div><span>${st.p}</span> сообщ.</div></div>
+				<div class="forum-last-post"><div class="last-post-meta">${it.children.length ? 'Подразделов: ' + it.children.length : 'Открыть →'}</div></div>
+			</div>
+		`;
+	}).join('');
+}
+
+function openNode(id) { pathStack.push(id); showTab('forums'); renderExplorer(); }
+function jumpTo(idx) { pathStack = pathStack.slice(0, idx + 1); showTab('forums'); renderExplorer(); }
+function goBack() { if (pathStack.length > 1) { pathStack.pop(); renderExplorer(); } }
+function goHome() { pathStack = ['root']; showTab('forums'); renderExplorer(); }
+
+let targetParentId = null;
+function openSubModal(parentId = null) {
+	targetParentId = parentId || pathStack[pathStack.length - 1];
+	openModal('sub-modal');
+}
+
+function handleCreateSub(e) {
+	e.preventDefault();
+	const parent = findNode(targetParentId);
+	const title = document.getElementById('sub-title').value.trim();
+	const desc = document.getElementById('sub-desc').value.trim();
+	parent.children.push({ id: 'n_' + Date.now(), title, desc, icon: '📁', children: [], topics: [] });
+	saveTree(); closeModal('sub-modal'); e.target.reset(); renderExplorer(); showToast('Подраздел «' + title + '» создан!');
+}
+
+function openTopicModal() {
+	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт, чтобы создать тему'); }
+	openModal('topic-modal');
+}
+
+function handleCreateTopic(e) {
+	e.preventDefault();
+	const cur = findNode(pathStack[pathStack.length - 1]);
+	const title = document.getElementById('top-title').value.trim();
+	const text = document.getElementById('top-body').value.trim();
+	const time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	cur.topics.unshift({ id: 't_' + Date.now(), title, author: currentUser.username, posts: [{ author: currentUser.username, text, time }] });
+	saveTree(); closeModal('topic-modal'); e.target.reset(); renderExplorer(); showToast('Тема создана!');
+}
+
+function openTopic(topId) {
+	const cur = findNode(pathStack[pathStack.length - 1]);
+	activeTopic = cur.topics.find(t => t.id === topId);
+	document.getElementById('topic-breadcrumb').innerText = pathStack.map(id => findNode(id).title).join(' / ') + ' / ' + activeTopic.title;
+	document.getElementById('topic-view-title').innerText = activeTopic.title;
+	renderPosts(); showTab('topic');
+}
+
+function renderPosts() {
+	document.getElementById('topic-posts-container').innerHTML = activeTopic.posts.map(p => `
+		<div class="post-item">
+			<div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name">${p.author}</div><div class="role-badge">Игрок</div></div>
+			<div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div>
 		</div>
 	`).join('');
-	showView('server');
+}
+
+function submitReply() {
+	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
+	const inp = document.getElementById('reply-text');
+	if (!inp.value.trim()) return;
+	const time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	activeTopic.posts.push({ author: currentUser.username, text: inp.value.trim(), time });
+	saveTree(); inp.value = ''; renderPosts(); showToast('Ответ добавлен!');
+}
+
+function closeTopic() { showTab('forums'); renderExplorer(); }
+
+function showTab(t) {
+	['forums', 'new', 'users', 'topic'].forEach(id => document.getElementById('tab-' + id).style.display = (id === t) ? 'block' : 'none');
+	document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+	if (document.getElementById('nav-' + t)) document.getElementById('nav-' + t).classList.add('active');
+	if (t === 'users') renderUsers();
+	if (t === 'new') renderNew();
+}
+
+function renderUsers() {
+	document.getElementById('users-directory').innerHTML = usersList.length
+		? usersList.map(u => `<div class="user-card-row"><div class="avatar neon-pink">${u.charAt(0).toUpperCase()}</div><div><div class="staff-name">${u}</div><div class="staff-role">Участник</div></div></div>`).join('')
+		: `<div style="color:var(--muted); font-size:13px;">Пока нет зарегистрированных участников.</div>`;
+}
+
+function renderNew() {
+	let all = [];
+	const collect = n => { (n.topics || []).forEach(top => all.push({ top, sec: n.title })); (n.children || []).forEach(collect); };
+	collect(tree);
+	document.getElementById('whats-new-list').innerHTML = all.length
+		? all.map(x => `<div class="forum-item"><div class="forum-icon unread">🆕</div><div class="forum-info"><span class="forum-title">${x.top.title}</span><p class="forum-desc">Автор: ${x.top.author} • Раздел: ${x.sec}</p></div></div>`).join('')
+		: `<div class="widget-body" style="color:var(--muted); font-size:13px;">Пока никто не создавал тем.</div>`;
 }
 
 function updateAuthUI() {
@@ -111,131 +188,79 @@ function updateAuthUI() {
 function handleRegister(e) {
 	e.preventDefault();
 	const username = document.getElementById('reg-username').value.trim();
-	currentUser = { username, email: document.getElementById('reg-email').value.trim(), role: 'Игрок' };
+	currentUser = { username };
 	localStorage.setItem('neon_user', JSON.stringify(currentUser));
-	if (document.getElementById('empty-users-msg')) document.getElementById('empty-users-msg').remove();
-	document.getElementById('users-directory').innerHTML += `
-		<div class="user-card-row">
-			<div class="avatar neon-pink">${username.charAt(0).toUpperCase()}</div>
-			<div><div class="staff-name">${username}</div><div class="staff-role">Участник • Зарегистрирован только что</div></div>
-		</div>
-	`;
-	closeModal('register-modal'); updateAuthUI(); showToast('Аккаунт ' + username + ' создан!');
+	if (!usersList.includes(username)) {
+		usersList.push(username);
+		localStorage.setItem('neon_users', JSON.stringify(usersList));
+	}
+	closeModal('register-modal');
+	updateAuthUI();
+	showToast('Аккаунт ' + username + ' создан!');
 }
-
 
 function handleLogin(e) {
 	e.preventDefault();
 	const username = document.getElementById('login-username').value.trim();
-	currentUser = { username, role: 'Игрок' };
+	currentUser = { username };
 	localStorage.setItem('neon_user', JSON.stringify(currentUser));
-	closeModal('login-modal'); updateAuthUI(); showToast('Вы вошли как ' + username);
+	if (!usersList.includes(username)) {
+		usersList.push(username);
+		localStorage.setItem('neon_users', JSON.stringify(usersList));
+	}
+	closeModal('login-modal');
+	updateAuthUI();
+	showToast('Вы вошли как ' + username);
 }
 
-function logout() { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); showToast('Вы вышли из аккаунта'); }
-
-function showView(v) {
-	['forums', 'server', 'new', 'users', 'topic'].forEach(id => document.getElementById('view-' + id).style.display = (id === v) ? 'block' : 'none');
-	document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-	if (document.getElementById('nav-' + v)) document.getElementById('nav-' + v).classList.add('active');
+function logout() {
+	localStorage.removeItem('neon_user');
+	currentUser = null;
+	updateAuthUI();
+	showToast('Вы вышли');
 }
 
-function openTopic(sec, title, author, text, time) {
-	document.getElementById('topic-breadcrumb').innerText = `Форумы / ${sec} / ${title}`;
-	document.getElementById('topic-view-title').innerText = title;
-	document.getElementById('topic-posts-container').innerHTML = `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${author.charAt(0).toUpperCase()}</div><div class="staff-name">${author}</div><div class="role-badge">Игрок</div></div><div class="post-content"><div class="post-date">${time}</div><p>${text.replace(/\n/g, '<br>')}</p></div></div>`;
-	showView('topic'); window.scrollTo(0, 0);
-}
-
-function submitReply() {
-	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
-	const inp = document.getElementById('reply-text');
-	if (!inp.value.trim()) return;
-	const time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	document.getElementById('topic-posts-container').innerHTML += `<div class="post-item"><div class="post-author"><div class="avatar neon-cyan">${currentUser.username.charAt(0).toUpperCase()}</div><div class="staff-name">${currentUser.username}</div><div class="role-badge">Игрок</div></div><div class="post-content"><div class="post-date">${time}</div><p>${inp.value.trim().replace(/\n/g, '<br>')}</p></div></div>`;
-	inp.value = ''; showToast('Ответ опубликован!');
-}
-
-function openNewTopicModal() {
-	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
-	openModal('topic-modal');
-}
-
-function handleCreateTopic(e) {
-	e.preventDefault();
-	const key = document.getElementById('new-topic-section').value;
-	const sec = sectionNames[key];
-	const title = document.getElementById('new-topic-title').value.trim();
-	const body = document.getElementById('new-topic-body').value.trim();
-	const time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-	counters[key] += 1;
-	document.getElementById('stat-t-' + key).innerText = counters[key];
-	document.getElementById('stat-p-' + key).innerText = counters[key];
-	document.getElementById('last-' + key).innerHTML = `
-		<span class="last-post-title">${title}</span>
-		<div class="last-post-meta">${time} • <span class="role-user">${currentUser.username}</span></div>
+function initModals() {
+	document.getElementById('modals-container').innerHTML = `
+		<div class="modal-overlay" id="register-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Регистрация</h3><button class="modal-close" onclick="closeModal('register-modal')">×</button></div>
+			<form onsubmit="handleRegister(event)">
+				<label class="input-label">Никнейм (Nick_Name)</label><input type="text" id="reg-username" class="neon-input" required>
+				<label class="input-label">Пароль</label><input type="password" class="neon-input" required>
+				<button type="submit" class="btn btn-register full-width">Создать аккаунт</button>
+			</form>
+		</div></div>
+		<div class="modal-overlay" id="login-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Вход</h3><button class="modal-close" onclick="closeModal('login-modal')">×</button></div>
+			<form onsubmit="handleLogin(event)">
+				<label class="input-label">Никнейм</label><input type="text" id="login-username" class="neon-input" required>
+				<label class="input-label">Пароль</label><input type="password" class="neon-input" required>
+				<button type="submit" class="btn btn-register full-width">Войти</button>
+			</form>
+		</div></div>
+		<div class="modal-overlay" id="sub-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Создать подраздел</h3><button class="modal-close" onclick="closeModal('sub-modal')">×</button></div>
+			<form onsubmit="handleCreateSub(event)">
+				<label class="input-label">Название подраздела (например: Звания)</label><input type="text" id="sub-title" class="neon-input" required>
+				<label class="input-label">Описание</label><input type="text" id="sub-desc" class="neon-input" placeholder="Краткое описание...">
+				<button type="submit" class="btn btn-register full-width">Создать подраздел</button>
+			</form>
+		</div></div>
+		<div class="modal-overlay" id="topic-modal"><div class="modal-box">
+			<div class="modal-header"><h3>Новая тема</h3><button class="modal-close" onclick="closeModal('topic-modal')">×</button></div>
+			<form onsubmit="handleCreateTopic(event)">
+				<label class="input-label">Заголовок</label><input type="text" id="top-title" class="neon-input" required>
+				<label class="input-label">Текст сообщения</label><textarea id="top-body" class="neon-input" rows="4" required></textarea>
+				<button type="submit" class="btn btn-register full-width">Опубликовать</button>
+			</form>
+		</div></div>
 	`;
-
-	document.getElementById('user-topics-block').style.display = 'block';
-	const item = document.createElement('div');
-	item.className = 'forum-item';
-	item.onclick = () => openTopic(sec, title, currentUser.username, body, time);
-	item.innerHTML = `
-		<div class="forum-icon unread">💬</div>
-		<div class="forum-info">
-			<span class="forum-title">${title}</span>
-			<p class="forum-desc">Раздел: ${sec}</p>
-		</div>
-		<div class="forum-stats">
-			<div><span>1</span> тема</div>
-			<div><span>1</span> сообщ.</div>
-		</div>
-		<div class="forum-last-post">
-			<span class="last-post-title">${title}</span>
-			<div class="last-post-meta">${time} • ${currentUser.username}</div>
-		</div>
-	`;
-	document.getElementById('custom-topics-list').prepend(item);
-
-	if (document.getElementById('empty-new-msg')) document.getElementById('empty-new-msg').remove();
-	const act = document.createElement('div');
-	act.className = 'forum-item';
-	act.onclick = () => openTopic(sec, title, currentUser.username, body, time);
-	act.innerHTML = `
-		<div class="forum-icon unread">🆕</div>
-		<div class="forum-info">
-			<span class="forum-title">${title}</span>
-			<p class="forum-desc">Автор: ${currentUser.username} • ${sec}</p>
-		</div>
-		<div class="forum-stats">
-			<div><span>${time}</span></div>
-		</div>
-		<div class="forum-last-post">
-			<span class="last-post-title">Открыть тему →</span>
-		</div>
-	`;
-	document.getElementById('whats-new-list').prepend(act);
-
-	closeModal('topic-modal');
-	e.target.reset();
-	showToast('Тема опубликована!');
 }
 
-function openModal(id) {
-	document.getElementById(id).style.display = 'flex';
-}
+function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function showToast(msg) { const t = document.getElementById('toast'); t.innerText = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 
-function closeModal(id) {
-	document.getElementById(id).style.display = 'none';
-}
-
-function showToast(msg) {
-	const t = document.getElementById('toast');
-	t.innerText = msg;
-	t.classList.add('show');
-	setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-initLayout();
+initModals();
 updateAuthUI();
+renderExplorer();
