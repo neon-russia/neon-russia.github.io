@@ -183,27 +183,25 @@ function showTab(t) {
 	refreshUI();
 }
 
-function renderUsers() {
-	const l = Object.values(db.users);
-	const canManage = currentUser && ['founder', 'co-founder', 'head-admin'].includes(getUserRole(currentUser).key);
+function renderStaff() {
+	const b = document.querySelector('.sidebar .widget-body'); if (!b) return;
+	const gaIndex = ROLES.findIndex(r => r.key === 'head-admin');
 
-	document.getElementById('users-directory').innerHTML = l.length ? l.map(u => {
+	const s = Object.values(db.users)
+		.filter(u => {
+			const idx = ROLES.findIndex(r => r.key === getUserRole(u).key);
+			return idx !== -1 && idx < gaIndex;
+		})
+		.sort((a, b) => {
+			return ROLES.findIndex(r => r.key === getUserRole(a).key) - ROLES.findIndex(r => r.key === getUserRole(b).key);
+		});
+
+	b.innerHTML = s.length ? s.map(u => {
 		const r = getUserRole(u);
-		const selectHtml = canManage ? `
-			<select class="neon-input" style="width:auto; padding:4px 8px; margin-left:auto;" onchange="setUserRole('${safeKey(u.username)}', this.value)">
-				${ROLES.map(role => `<option value="${role.key}" ${role.key === r.key ? 'selected' : ''}>${role.label}</option>`).join('')}
-			</select>` : '';
-
-		return `<div class="user-card-row">
-			<div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div>
-			<div>
-				<div class="staff-name r-${r.key}">${u.username}</div>
-				<div class="staff-role r-${r.key}">${r.label}</div>
-			</div>
-			${selectHtml}
-		</div>`;
-	}).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`;
+		return `<div class="staff-item"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
+	}).join('') : `<div style="color:var(--muted);font-size:13px;">Список команды пуст</div>`;
 }
+
 
 async function setUserRole(userKey, newRoleKey) {
 	if (!db.users[userKey]) return;
