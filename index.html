@@ -27,17 +27,30 @@
 	<main class="container main-layout">
 		<div class="forum-content">
 
-			<!-- Вкладка: Форумы и любые вложенные подразделы -->
+			<!-- Вкладка: Форумы, Вкладки и Подвкладки -->
 			<div id="tab-forums">
 				<div class="top-action-bar" style="flex-wrap: wrap; gap: 10px;">
 					<div class="breadcrumb" id="breadcrumbs"></div>
 					<div style="display: flex; gap: 8px; flex-wrap: wrap;">
 						<button class="btn btn-login" id="btn-back" style="display: none;" onclick="goBack()">← Назад</button>
-						<button class="btn btn-login" onclick="openSubModal()">+ Подраздел</button>
+						<button class="btn btn-login" onclick="openSubModal()">+ Вкладка</button>
+						<button class="btn btn-login" id="btn-new-subtab" style="display: none;" onclick="openSubtabModal()">+ Подвкладка</button>
 						<button class="btn btn-register" id="btn-new-topic" style="display: none;" onclick="openTopicModal()">+ Тема</button>
 					</div>
 				</div>
 				<div id="explorer-content"></div>
+			</div>
+
+			<!-- Просмотр текста Подвкладки -->
+			<div id="tab-subtab" style="display: none;">
+				<div class="top-action-bar">
+					<span class="breadcrumb" id="subtab-breadcrumb"></span>
+					<button class="btn btn-login" onclick="closeSubtab()">← Назад во вкладку</button>
+				</div>
+				<section class="category-block">
+					<div class="category-header"><h2 id="subtab-view-title"></h2></div>
+					<div class="widget-body" id="subtab-view-body" style="font-size: 14px; line-height: 1.7;"></div>
+				</section>
 			</div>
 
 			<!-- Вкладка: Что нового -->
@@ -68,7 +81,7 @@
 			<div id="tab-topic" style="display: none;">
 				<div class="top-action-bar">
 					<span class="breadcrumb" id="topic-breadcrumb"></span>
-					<button class="btn btn-login" onclick="closeTopic()">← Назад в раздел</button>
+					<button class="btn btn-login" onclick="closeTopic()">← Назад во вкладку</button>
 				</div>
 				<section class="category-block">
 					<div class="category-header"><h2 id="topic-view-title"></h2></div>
