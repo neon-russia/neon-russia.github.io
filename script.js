@@ -1,4 +1,4 @@
-const DB_URL = 'https://firebaseio.com'.replace(/\/$/, '');
+const DB_URL = 'https://neon-russia-default-rtdb.firebaseio.com';
 
 
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
