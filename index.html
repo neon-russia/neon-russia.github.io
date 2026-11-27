@@ -41,11 +41,14 @@
 				<div id="explorer-content"></div>
 			</div>
 
-			<!-- Просмотр текста Подвкладки и ответы -->
+			<!-- Просмотр текста Подвкладки, ответы и закрытие -->
 			<div id="tab-subtab" style="display: none;">
-				<div class="top-action-bar">
+				<div class="top-action-bar" style="flex-wrap: wrap; gap: 10px;">
 					<span class="breadcrumb" id="subtab-breadcrumb"></span>
-					<button class="btn btn-login" onclick="closeSubtab()">← Назад во вкладку</button>
+					<div style="display: flex; gap: 8px;">
+						<button class="btn btn-login" id="btn-toggle-subtab" style="display: none;" onclick="toggleSubtabLock()"></button>
+						<button class="btn btn-login" onclick="closeSubtab()">← Назад во вкладку</button>
+					</div>
 				</div>
 				<section class="category-block">
 					<div class="category-header"><h2 id="subtab-view-title"></h2></div>
@@ -55,7 +58,10 @@
 					<div class="category-header"><h2>💬 Ответы в подвкладке</h2></div>
 					<div id="subtab-posts-container"></div>
 				</section>
-				<section class="category-block">
+				<section class="category-block" id="subtab-closed-notice" style="display: none;">
+					<div class="widget-body" style="color: var(--pink); font-weight: 600; text-align: center;">🔒 Данная подвкладка закрыта для дальнейших ответов.</div>
+				</section>
+				<section class="category-block" id="subtab-reply-section">
 					<div class="category-header"><h2>✍️ Написать ответ</h2></div>
 					<div class="widget-body">
 						<textarea id="subtab-reply-text" class="neon-input" rows="4" placeholder="Введите ваш ответ или заявление..."></textarea>
