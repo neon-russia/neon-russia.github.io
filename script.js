@@ -183,25 +183,34 @@ function showTab(t) {
 	refreshUI();
 }
 
-function renderStaff() {
-	const b = document.querySelector('.sidebar .widget-body'); if (!b) return;
+function renderUsers() {
+	const dir = document.getElementById('users-directory');
+	if (!dir) return;
+	const l = Object.values(db.users);
 	const gaIndex = ROLES.findIndex(r => r.key === 'head-admin');
+	const myIdx = currentUser ? ROLES.findIndex(r => r.key === getUserRole(currentUser).key) : -1;
+	const canManage = myIdx !== -1 && myIdx < gaIndex; // Доступ только для должностей выше ГА
 
-	const s = Object.values(db.users)
-		.filter(u => {
-			const idx = ROLES.findIndex(r => r.key === getUserRole(u).key);
-			return idx !== -1 && idx < gaIndex;
-		})
-		.sort((a, b) => {
-			return ROLES.findIndex(r => r.key === getUserRole(a).key) - ROLES.findIndex(r => r.key === getUserRole(b).key);
-		});
-
-	b.innerHTML = s.length ? s.map(u => {
+	dir.innerHTML = l.length ? l.map(u => {
 		const r = getUserRole(u);
-		return `<div class="staff-item"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
-	}).join('') : `<div style="color:var(--muted);font-size:13px;">Список команды пуст</div>`;
-}
+		const targetIdx = ROLES.findIndex(role => role.key === r.key);
+		const canEditThisUser = canManage && (myIdx === 0 || targetIdx >= myIdx);
 
+		const selectHtml = canEditThisUser ? `
+			<select class="neon-input" style="width:auto; padding:5px 10px; margin-left:auto;" onchange="setUserRole('${safeKey(u.username)}', this.value)">
+				${ROLES.filter((_, idx) => myIdx === 0 || idx >= myIdx).map(role => `<option value="${role.key}" ${role.key === r.key ? 'selected' : ''}>${role.label}</option>`).join('')}
+			</select>` : '';
+
+		return `<div class="user-card-row">
+			<div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div>
+			<div>
+				<div class="staff-name r-${r.key}">${u.username}</div>
+				<div class="staff-role r-${r.key}">${r.label}</div>
+			</div>
+			${selectHtml}
+		</div>`;
+	}).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`;
+}
 
 async function setUserRole(userKey, newRoleKey) {
 	if (!db.users[userKey]) return;
