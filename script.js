@@ -113,9 +113,16 @@ function handleRegister(e) {
 	const username = document.getElementById('reg-username').value.trim();
 	currentUser = { username, email: document.getElementById('reg-email').value.trim(), role: 'Игрок' };
 	localStorage.setItem('neon_user', JSON.stringify(currentUser));
-	document.getElementById('users-directory').innerHTML += `<div class="user-card-row"><div class="avatar neon-pink">${username.charAt(0).toUpperCase()}</div><div><div class="staff-name">${username}</div><div class="staff-role">Участник • Зарегистрирован только что</div></div></div>`;
+	if (document.getElementById('empty-users-msg')) document.getElementById('empty-users-msg').remove();
+	document.getElementById('users-directory').innerHTML += `
+		<div class="user-card-row">
+			<div class="avatar neon-pink">${username.charAt(0).toUpperCase()}</div>
+			<div><div class="staff-name">${username}</div><div class="staff-role">Участник • Зарегистрирован только что</div></div>
+		</div>
+	`;
 	closeModal('register-modal'); updateAuthUI(); showToast('Аккаунт ' + username + ' создан!');
 }
+
 
 function handleLogin(e) {
 	e.preventDefault();
