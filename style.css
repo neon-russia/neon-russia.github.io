@@ -538,7 +538,6 @@ a {
 .r-technical-specialist { color: #00f3ff; font-weight: 700; text-shadow: 0 0 6px rgba(0, 243, 255, 0.5); }
 .r-administrative-supervisor { color: #00ff88; font-weight: 700; }
 .r-player { color: var(--muted); font-weight: 600; }
-/* Новые должности администрации и медиа */
 .r-gs-zgs { color: #ffca28; font-weight: 700; }
 .r-senior-admin { color: #ff7043; font-weight: 700; }
 .r-admin { color: #42a5f5; font-weight: 700; }
