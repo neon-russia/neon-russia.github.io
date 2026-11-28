@@ -23,6 +23,19 @@ const makeRoleFlags = () => {
 const getUserRole = u => (!u ? ROLES.at(-1) : (ROLES.find(r => u[r.key] === true) || ROLES.at(-1)));
 const safeKey = s => s.toLowerCase().replace(/[.#$\[\]\/]/g, '_');
 
+const isAdminOrAbove = () => {
+	if (!currentUser) return false;
+	const myIdx = ROLES.findIndex(r => r.key === getUserRole(currentUser).key);
+	const adminIdx = ROLES.findIndex(r => r.key === 'admin');
+	return myIdx !== -1 && myIdx <= adminIdx;
+};
+
+const isProjectTeamOrAbove = () => {
+	if (!currentUser) return false;
+	const myIdx = ROLES.findIndex(r => r.key === getUserRole(currentUser).key);
+	const gaIdx = ROLES.findIndex(r => r.key === 'head-admin');
+	return myIdx !== -1 && myIdx < gaIdx;
+};
 
 const seedNodes = {
 	cat_main: { id: 'cat_main', parentId: 'root', title: '⚡ Основной раздел', order: 1 },
@@ -36,7 +49,6 @@ const seedNodes = {
 	s1_jb: { id: 's1_jb', parentId: 's1', title: 'Жалобы', desc: 'Жалобы на игроков, лидеров и администрацию.', icon: '⚖️', order: 3 },
 	s2: { id: 's2', parentId: 'cat_srv', title: 'Сервер №2 | Не работает!', desc: 'Вкладки второго сервера.', icon: '02', order: 2 }
 };
-
 async function api(path, method = 'GET', body = null) {
 	const opts = body !== null ? { method, body: JSON.stringify(body) } : { method };
 	return (await fetch(`${DB}/${path}.json`, opts)).json();
@@ -66,6 +78,7 @@ const getChildren = pid => Object.values(db.nodes).filter(n => n.parentId === pi
 const getSubtabs = nid => Object.values(db.subtabs).filter(s => s.nodeId === nid).sort((a, b) => (a.created || 0) - (b.created || 0));
 const getTopics = nid => Object.values(db.topics).filter(t => t.nodeId === nid).sort((a, b) => b.created - a.created);
 const getPosts = tid => Object.values(db.posts).filter(p => p.topicId === tid).sort((a, b) => a.created - b.created);
+
 function countStats(nid) {
 	let tList = getTopics(nid), t = tList.length, p = tList.reduce((s, top) => s + getPosts(top.id).length, 0);
 	for (let c of getChildren(nid)) { const sub = countStats(c.id); t += sub.t; p += sub.p; }
@@ -94,7 +107,7 @@ function renderExplorer() {
 	const subs = getChildren(curId), subtabs = getSubtabs(curId), tops = getTopics(curId);
 	let html = subs.length ? `<section class="category-block"><div class="category-header"><h2>📁 Вкладки: ${curTitle}</h2></div><div class="forum-list">${renderNodes(subs)}</div></section>` : '';
 	if (subtabs.length) html += `<section class="category-block"><div class="category-header"><h2>📄 Подвкладки (информация)</h2></div><div class="forum-list">${subtabs.map(st => `<div class="forum-item" onclick="openSubtab('${st.id}')"><div class="forum-icon ${st.closed ? '' : 'unread'}">${st.closed ? '🔒' : '📄'}</div><div class="forum-info"><span class="forum-title">${st.title}</span><p class="forum-desc">${st.closed ? 'Закрыто для ответов' : 'Нажмите, чтобы открыть'}</p></div><div class="forum-stats"><div><span>${st.closed ? 'Закрыто' : 'Открыто'}</span></div></div><div class="forum-last-post"><span class="last-post-title">Открыть →</span><div class="last-post-meta">${st.author || ''}</div></div></div>`).join('')}</div></section>`;
-	html += `<section class="category-block"><div class="category-header"><h2>💬 Темы вкладки</h2></div><div class="forum-list">${tops.length ? tops.map(t => { const ps = getPosts(t.id), last = ps[ps.length - 1] || {}; return `<div class="forum-item" onclick="openTopic('${t.id}')"><div class="forum-icon unread">💬</div><div class="forum-info"><span class="forum-title">${t.title}</span><p class="forum-desc">Автор: ${t.author}</p></div><div class="forum-stats"><div><span>${ps.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${last.author || t.author}</span><div class="last-post-meta">${last.time || ''}</div></div></div>`; }).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет.</div>`}</div></section>`;
+	html += `<section class="category-block"><div class="category-header"><h2>💬 Темы вкладки</h2></div><div class="forum-list">${tops.length ? tops.map(t => { const ps = getPosts(t.id), last = ps[ps.length - 1] || {}; return `<div class="forum-item" onclick="openTopic('${t.id}')"><div class="forum-icon ${t.closed ? '' : 'unread'}">${t.closed ? '🔒' : '💬'}</div><div class="forum-info"><span class="forum-title">${t.closed ? '🔒 ' : ''}${t.title}</span><p class="forum-desc">Автор: ${t.author} ${t.closed ? '• Закрыто' : ''}</p></div><div class="forum-stats"><div><span>${ps.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${last.author || t.author}</span><div class="last-post-meta">${last.time || ''}</div></div></div>`; }).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет.</div>`}</div></section>`;
 	document.getElementById('explorer-content').innerHTML = html;
 }
 
@@ -119,6 +132,7 @@ async function handleCreateSub(e) {
 	db.nodes[id] = { id, parentId: targetPid, title: document.getElementById('sub-title').value.trim(), desc: document.getElementById('sub-desc').value.trim(), icon: '📁', order: Date.now() };
 	closeModal('sub-modal'); e.target.reset(); renderExplorer(); await api(`nodes/${id}`, 'PUT', db.nodes[id]); showToast('Вкладка сохранена!');
 }
+
 async function handleCreateSubtab(e) {
 	e.preventDefault(); const id = 'st_' + Date.now();
 	db.subtabs[id] = { id, nodeId: pathStack[pathStack.length - 1], title: document.getElementById('st-title').value.trim(), text: document.getElementById('st-body').value.trim(), author: currentUser ? currentUser.username : 'Администрация', closed: false, created: Date.now() };
@@ -126,21 +140,26 @@ async function handleCreateSubtab(e) {
 }
 async function handleCreateTopic(e) {
 	e.preventDefault(); const now = Date.now(), tid = 't_' + now, pid = 'p_' + now, time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	db.topics[tid] = { id: tid, nodeId: pathStack[pathStack.length - 1], title: document.getElementById('top-title').value.trim(), author: currentUser.username, created: now };
+	db.topics[tid] = { id: tid, nodeId: pathStack[pathStack.length - 1], title: document.getElementById('top-title').value.trim(), author: currentUser.username, closed: false, created: now };
 	db.posts[pid] = { id: pid, topicId: tid, author: currentUser.username, text: document.getElementById('top-body').value.trim(), time, created: now };
 	closeModal('topic-modal'); e.target.reset(); renderExplorer(); await Promise.all([api(`topics/${tid}`, 'PUT', db.topics[tid]), api(`posts/${pid}`, 'PUT', db.posts[pid])]); showToast('Тема создана!');
 }
 
 function renderPostHtml(p) {
 	const r = getUserRole(db.users[safeKey(p.author)]);
-	return `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name r-${r.key}">${p.author}</div><div class="role-badge r-${r.key}">${r.label}</div></div><div class="post-content"><div class="post-date">${p.time}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`;
+	const delBtn = isAdminOrAbove()
+		? `<button class="btn btn-login" style="padding:2px 8px;font-size:11px;float:right;border-color:#ff1e6e;color:#ff1e6e;" onclick="deletePost('${p.id}')">🗑️ Удалить</button>`
+		: '';
+	return `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name r-${r.key}">${p.author}</div><div class="role-badge r-${r.key}">${r.label}</div></div><div class="post-content"><div class="post-date">${p.time} ${delBtn}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`;
 }
+
 function openSubtab(id) {
 	const st = db.subtabs[id]; if (!st) return; activeSubtabId = id;
 	document.getElementById('subtab-breadcrumb').innerText = pathStack.map(x => x === 'root' ? 'Главная' : db.nodes[x]?.title).join(' / ') + ' / ' + st.title;
 	document.getElementById('subtab-view-body').innerHTML = st.text.replace(/\n/g, '<br>');
 	updateSubtabLockUI(); renderSubtabPosts(); showTab('subtab');
 }
+
 function updateSubtabLockUI() {
 	const st = db.subtabs[activeSubtabId]; if (!st) return; const c = !!st.closed;
 	document.getElementById('subtab-view-title').innerText = (c ? '🔒 ' : '') + st.title;
@@ -149,8 +168,20 @@ function updateSubtabLockUI() {
 	const btn = document.getElementById('btn-toggle-subtab'), ok = currentUser && (getUserRole(currentUser).key !== 'player' || st.author === currentUser.username);
 	btn.style.display = ok ? 'inline-block' : 'none'; btn.innerText = c ? '🔓 Открыть подвкладку' : '🔒 Закрыть подвкладку';
 }
-async function toggleSubtabLock() { const st = db.subtabs[activeSubtabId]; if (!st) return; st.closed = !st.closed; updateSubtabLockUI(); await api(`subtabs/${activeSubtabId}`, 'PUT', st); showToast(st.closed ? 'Закрыто!' : 'Открыто!'); }
-function renderSubtabPosts() { const l = getPosts(activeSubtabId); document.getElementById('subtab-replies-block').style.display = l.length ? 'block' : 'none'; document.getElementById('subtab-posts-container').innerHTML = l.map(renderPostHtml).join(''); }
+
+async function toggleSubtabLock() {
+	const st = db.subtabs[activeSubtabId]; if (!st) return;
+	st.closed = !st.closed; updateSubtabLockUI();
+	await api(`subtabs/${activeSubtabId}`, 'PUT', st);
+	showToast(st.closed ? 'Закрыто!' : 'Открыто!');
+}
+
+function renderSubtabPosts() {
+	const l = getPosts(activeSubtabId);
+	document.getElementById('subtab-replies-block').style.display = l.length ? 'block' : 'none';
+	document.getElementById('subtab-posts-container').innerHTML = l.map(renderPostHtml).join('');
+}
+
 async function submitSubtabReply() {
 	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
 	if (db.subtabs[activeSubtabId]?.closed) return showToast('Подвкладка закрыта!');
@@ -161,10 +192,69 @@ async function submitSubtabReply() {
 }
 const closeSubtab = () => { activeSubtabId = null; showTab('forums'); renderExplorer(); };
 
-function openTopic(tid) { activeTopicId = tid; const top = db.topics[tid]; document.getElementById('topic-breadcrumb').innerText = pathStack.map(id => id === 'root' ? 'Главная' : db.nodes[id]?.title).join(' / ') + ' / ' + top.title; document.getElementById('topic-view-title').innerText = top.title; renderPosts(); showTab('topic'); }
-const renderPosts = () => { document.getElementById('topic-posts-container').innerHTML = getPosts(activeTopicId).map(renderPostHtml).join(''); };
+function openTopic(tid) {
+	activeTopicId = tid;
+	const top = db.topics[tid];
+	if (!top) return closeTopic();
+	document.getElementById('topic-breadcrumb').innerText = pathStack.map(id => id === 'root' ? 'Главная' : db.nodes[id]?.title).join(' / ') + ' / ' + top.title;
+	renderPosts();
+	showTab('topic');
+}
+
+function renderPosts() {
+	const top = db.topics[activeTopicId];
+	if (!top) return;
+	const c = !!top.closed;
+
+	const adminControls = isAdminOrAbove() ? `
+		<div style="display:flex;gap:8px;margin-top:10px;">
+			<button class="btn btn-login" style="padding:5px 12px;font-size:12px;" onclick="toggleTopicLock()">${c ? '🔓 Открыть тему' : '🔒 Закрыть тему'}</button>
+			<button class="btn btn-login" style="padding:5px 12px;font-size:12px;border-color:#ff1e6e;color:#ff1e6e;" onclick="deleteTopic('${top.id}')">🗑️ Удалить тему</button>
+		</div>` : '';
+
+	document.getElementById('topic-view-title').innerHTML = `${c ? '🔒 ' : ''}${top.title} ${adminControls}`;
+	document.getElementById('topic-posts-container').innerHTML = getPosts(activeTopicId).map(renderPostHtml).join('');
+
+	const replyBox = document.getElementById('reply-text');
+	if (replyBox) {
+		replyBox.disabled = c;
+		replyBox.placeholder = c ? '🔒 Тема закрыта для новых ответов' : 'Напишите ответ...';
+	}
+}
+
+async function toggleTopicLock() {
+	const top = db.topics[activeTopicId];
+	if (!top || !isAdminOrAbove()) return;
+	top.closed = !top.closed;
+	renderPosts();
+	await api(`topics/${activeTopicId}`, 'PUT', top);
+	showToast(top.closed ? 'Тема закрыта!' : 'Тема открыта!');
+}
+
+async function deleteTopic(tid) {
+	if (!isAdminOrAbove() || !confirm('Удалить эту тему вместе со всеми ответами?')) return;
+	const topicPosts = getPosts(tid);
+	delete db.topics[tid];
+	topicPosts.forEach(p => delete db.posts[p.id]);
+	closeTopic();
+	await Promise.all([
+		api(`topics/${tid}`, 'DELETE'),
+		...topicPosts.map(p => api(`posts/${p.id}`, 'DELETE'))
+	]);
+	showToast('Тема удалена!');
+}
+async function deletePost(pid) {
+	if (!isAdminOrAbove() || !confirm('Удалить это сообщение?')) return;
+	delete db.posts[pid];
+	if (activeTopicId) renderPosts();
+	if (activeSubtabId) renderSubtabPosts();
+	await api(`posts/${pid}`, 'DELETE');
+	showToast('Сообщение удалено!');
+}
+
 async function submitReply() {
 	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
+	if (db.topics[activeTopicId]?.closed) return showToast('Тема закрыта!');
 	const inp = document.getElementById('reply-text'); if (!inp.value.trim()) return;
 	const now = Date.now(), pid = 'p_' + now, time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	db.posts[pid] = { id: pid, topicId: activeTopicId, author: currentUser.username, text: inp.value.trim(), time, created: now };
@@ -187,9 +277,8 @@ function renderUsers() {
 	const dir = document.getElementById('users-directory');
 	if (!dir) return;
 	const l = Object.values(db.users);
-	const gaIndex = ROLES.findIndex(r => r.key === 'head-admin');
 	const myIdx = currentUser ? ROLES.findIndex(r => r.key === getUserRole(currentUser).key) : -1;
-	const canManage = myIdx !== -1 && myIdx < gaIndex; // Доступ только для должностей выше ГА
+	const canManage = isProjectTeamOrAbove();
 
 	dir.innerHTML = l.length ? l.map(u => {
 		const r = getUserRole(u);
@@ -211,9 +300,8 @@ function renderUsers() {
 		</div>`;
 	}).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`;
 }
-
 async function setUserRole(userKey, newRoleKey) {
-	if (!db.users[userKey]) return;
+	if (!db.users[userKey] || !isProjectTeamOrAbove()) return;
 	ROLES.forEach(r => db.users[userKey][r.key] = (r.key === newRoleKey));
 	await api(`users/${userKey}`, 'PUT', db.users[userKey]);
 	refreshUI();
@@ -222,12 +310,12 @@ async function setUserRole(userKey, newRoleKey) {
 
 function renderStaff() {
 	const b = document.querySelector('.sidebar .widget-body'); if (!b) return;
-	const maxIndex = ROLES.findIndex(r => r.key === 'administrative-supervisor');
+	const gaIndex = ROLES.findIndex(r => r.key === 'head-admin');
 
 	const s = Object.values(db.users)
 		.filter(u => {
 			const idx = ROLES.findIndex(r => r.key === getUserRole(u).key);
-			return idx !== -1 && idx <= maxIndex;
+			return idx !== -1 && idx < gaIndex;
 		})
 		.sort((a, b) => {
 			return ROLES.findIndex(r => r.key === getUserRole(a).key) - ROLES.findIndex(r => r.key === getUserRole(b).key);
@@ -236,7 +324,7 @@ function renderStaff() {
 	b.innerHTML = s.length ? s.map(u => {
 		const r = getUserRole(u);
 		return `<div class="staff-item"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
-	}).join('') : `<div style="color:var(--muted);font-size:13px;">Список администрации пуст</div>`;
+	}).join('') : `<div style="color:var(--muted);font-size:13px;">Список команды пуст</div>`;
 }
 
 function renderNew() {
@@ -271,7 +359,7 @@ async function handleLogin(e) {
 	closeModal('login-modal'); updateAuthUI(); refreshUI(); showToast('Добро пожаловать, ' + found.username + '!');
 }
 
-const logout = () => { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); };
+const logout = () => { localStorage.removeItem('neon_user'); currentUser = null; updateAuthUI(); refreshUI(); };
 
 document.getElementById('modals-container').innerHTML = `
 	<div class="modal-overlay" id="register-modal"><div class="modal-box">
@@ -323,3 +411,4 @@ const showToast = msg => { const t = document.getElementById('toast'); t.innerTe
 updateAuthUI();
 syncCloud();
 setInterval(syncCloud, 3000);
+
