@@ -1,5 +1,4 @@
 const DB = 'https://neon-russia-default-rtdb.firebaseio.com/';
-const DB = 'https://firebaseio.com';
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
 let db = { users: {}, nodes: {}, subtabs: {}, topics: {}, posts: {} };
 let pathStack = ['root'], activeTopicId = null, activeSubtabId = null, targetPid = null;
