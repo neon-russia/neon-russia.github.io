@@ -1,4 +1,5 @@
 const DB = 'https://neon-russia-default-rtdb.firebaseio.com/';
+const DB = 'https://firebaseio.com';
 let currentUser = JSON.parse(localStorage.getItem('neon_user')) || null;
 let db = { users: {}, nodes: {}, subtabs: {}, topics: {}, posts: {} };
 let pathStack = ['root'], activeTopicId = null, activeSubtabId = null, targetPid = null;
@@ -133,7 +134,6 @@ function renderExplorer() {
 
 	document.getElementById('explorer-content').innerHTML = html;
 }
-
 function renderNodes(list) {
 	if (!list.length) return `<div class="widget-body" style="color:var(--muted);font-size:13px;">Пусто. Создайте первую вкладку!</div>`;
 	return list.map(n => {
@@ -161,6 +161,7 @@ async function handleCreateSubtab(e) {
 	db.subtabs[id] = { id, nodeId: pathStack[pathStack.length - 1], title: document.getElementById('st-title').value.trim(), text: document.getElementById('st-body').value.trim(), author: currentUser ? currentUser.username : 'Администрация', closed: false, created: Date.now() };
 	closeModal('subtab-modal'); e.target.reset(); renderExplorer(); await api(`subtabs/${id}`, 'PUT', db.subtabs[id]); showToast('Подвкладка создана!');
 }
+
 async function handleCreateTopic(e) {
 	e.preventDefault(); const now = Date.now(), tid = 't_' + now, pid = 'p_' + now, time = 'Сегодня в ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	db.topics[tid] = { id: tid, nodeId: pathStack[pathStack.length - 1], title: document.getElementById('top-title').value.trim(), author: currentUser.username, closed: false, created: now };
@@ -175,7 +176,6 @@ function renderPostHtml(p) {
 		: '';
 	return `<div class="post-item"><div class="post-author"><div class="avatar neon-pink">${p.author.charAt(0).toUpperCase()}</div><div class="staff-name r-${r.key}">${p.author}</div><div class="role-badge r-${r.key}">${r.label}</div></div><div class="post-content"><div class="post-date">${p.time} ${delBtn}</div><p>${p.text.replace(/\n/g, '<br>')}</p></div></div>`;
 }
-
 function openSubtab(id) {
 	const st = db.subtabs[id]; if (!st) return; activeSubtabId = id;
 	document.getElementById('subtab-breadcrumb').innerText = pathStack.map(x => x === 'root' ? 'Главная' : db.nodes[x]?.title).join(' / ') + ' / ' + st.title;
@@ -185,15 +185,33 @@ function openSubtab(id) {
 
 function updateSubtabLockUI() {
 	const st = db.subtabs[activeSubtabId]; if (!st) return; const c = !!st.closed;
-	document.getElementById('subtab-view-title').innerText = (c ? '🔒 ' : '') + st.title;
+	const delBtn = isAdminOrAbove()
+		? `<div style="margin-top:10px;"><button class="btn btn-login" style="padding:5px 12px;font-size:12px;border-color:#ff1e6e;color:#ff1e6e;" onclick="deleteSubtab('${st.id}')">🗑️ Удалить подвкладку</button></div>`
+		: '';
+
+	document.getElementById('subtab-view-title').innerHTML = `${c ? '🔒 ' : ''}${st.title} ${delBtn}`;
 	document.getElementById('subtab-reply-section').style.display = c ? 'none' : 'block';
 	document.getElementById('subtab-closed-notice').style.display = c ? 'block' : 'none';
-	const btn = document.getElementById('btn-toggle-subtab'), ok = currentUser && (getUserRole(currentUser).key !== 'player' || st.author === currentUser.username);
-	btn.style.display = ok ? 'inline-block' : 'none'; btn.innerText = c ? '🔓 Открыть подвкладку' : '🔒 Закрыть подвкладку';
+	const btn = document.getElementById('btn-toggle-subtab');
+	btn.style.display = isAdminOrAbove() ? 'inline-block' : 'none';
+	btn.innerText = c ? '🔓 Открыть подвкладку' : '🔒 Закрыть подвкладку';
+}
+
+async function deleteSubtab(stid) {
+	if (!isAdminOrAbove() || !confirm('Удалить эту подвкладку вместе со всеми ответами?')) return;
+	const subPosts = getPosts(stid);
+	delete db.subtabs[stid];
+	subPosts.forEach(p => delete db.posts[p.id]);
+	closeSubtab();
+	await Promise.all([
+		api(`subtabs/${stid}`, 'DELETE'),
+		...subPosts.map(p => api(`posts/${p.id}`, 'DELETE'))
+	]);
+	showToast('Подвкладка удалена!');
 }
 
 async function toggleSubtabLock() {
-	const st = db.subtabs[activeSubtabId]; if (!st) return;
+	const st = db.subtabs[activeSubtabId]; if (!st || !isAdminOrAbove()) return;
 	st.closed = !st.closed; updateSubtabLockUI();
 	await api(`subtabs/${activeSubtabId}`, 'PUT', st);
 	showToast(st.closed ? 'Закрыто!' : 'Открыто!');
@@ -204,7 +222,6 @@ function renderSubtabPosts() {
 	document.getElementById('subtab-replies-block').style.display = l.length ? 'block' : 'none';
 	document.getElementById('subtab-posts-container').innerHTML = l.map(renderPostHtml).join('');
 }
-
 async function submitSubtabReply() {
 	if (!currentUser) { openModal('login-modal'); return showToast('Войдите в аккаунт'); }
 	if (db.subtabs[activeSubtabId]?.closed) return showToast('Подвкладка закрыта!');
@@ -213,6 +230,7 @@ async function submitSubtabReply() {
 	db.posts[pid] = { id: pid, topicId: activeSubtabId, author: currentUser.username, text: inp.value.trim(), time, created: now };
 	inp.value = ''; renderSubtabPosts(); await api(`posts/${pid}`, 'PUT', db.posts[pid]); showToast('Ответ отправлен!');
 }
+
 const closeSubtab = () => { activeSubtabId = null; showTab('forums'); renderExplorer(); };
 
 function openTopic(tid) {
@@ -239,9 +257,8 @@ function renderPosts() {
 	document.getElementById('topic-posts-container').innerHTML = getPosts(activeTopicId).map(renderPostHtml).join('');
 
 	const replyBox = document.getElementById('reply-text');
-	if (replyBox) {
-		replyBox.disabled = c;
-		replyBox.placeholder = c ? '🔒 Тема закрыта для новых ответов' : 'Напишите ответ...';
+	if (replyBox && replyBox.parentElement) {
+		replyBox.parentElement.style.display = c ? 'none' : 'block';
 	}
 }
 
@@ -251,9 +268,8 @@ async function toggleTopicLock() {
 	top.closed = !top.closed;
 	renderPosts();
 	await api(`topics/${activeTopicId}`, 'PUT', top);
-	showToast(top.closed ? 'Тема закрыта!' : 'Тема открыта!');
+	showToast(top.closed ? '🔒 Тема закрыта!' : '🔓 Тема открыта!');
 }
-
 async function deleteTopic(tid) {
 	if (!isAdminOrAbove() || !confirm('Удалить эту тему вместе со всеми ответами?')) return;
 	const topicPosts = getPosts(tid);
@@ -266,6 +282,7 @@ async function deleteTopic(tid) {
 	]);
 	showToast('Тема удалена!');
 }
+
 async function deletePost(pid) {
 	if (!isAdminOrAbove() || !confirm('Удалить это сообщение?')) return;
 	delete db.posts[pid];
@@ -295,7 +312,6 @@ function showTab(t) {
 	if (document.getElementById('nav-' + t)) document.getElementById('nav-' + t).classList.add('active');
 	refreshUI();
 }
-
 function renderUsers() {
 	const dir = document.getElementById('users-directory');
 	if (!dir) return;
@@ -323,6 +339,7 @@ function renderUsers() {
 		</div>`;
 	}).join('') : `<div style="color:var(--muted);font-size:13px;">Пока нет участников.</div>`;
 }
+
 async function setUserRole(userKey, newRoleKey) {
 	if (!db.users[userKey] || !isProjectTeamOrAbove()) return;
 	ROLES.forEach(r => db.users[userKey][r.key] = (r.key === newRoleKey));
@@ -349,7 +366,6 @@ function renderStaff() {
 		return `<div class="staff-item"><div class="avatar neon-pink">${u.username.charAt(0).toUpperCase()}</div><div><div class="staff-name r-${r.key}">${u.username}</div><div class="staff-role r-${r.key}">${r.label}</div></div></div>`;
 	}).join('') : `<div style="color:var(--muted);font-size:13px;">Список команды пуст</div>`;
 }
-
 function renderNew() {
 	const l = Object.values(db.topics).sort((a, b) => b.created - a.created);
 	document.getElementById('whats-new-list').innerHTML = l.length ? l.map(t => `<div class="forum-item"><div class="forum-icon unread">🆕</div><div class="forum-info"><span class="forum-title">${t.title}</span><p class="forum-desc">Автор: ${t.author} • ${db.nodes[t.nodeId]?.title || ''}</p></div></div>`).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет.</div>`;
