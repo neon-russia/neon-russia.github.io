@@ -93,6 +93,7 @@ function refreshUI() {
 	if (document.getElementById('tab-subtab').style.display !== 'none' && activeSubtabId) { renderSubtabPosts(); updateSubtabLockUI(); }
 	renderStaff();
 }
+function renderExplorer()
 	html += `<section class="category-block"><div class="category-header"><h2>📁 Темы раздела: ${curTitle}</h2></div><div class="forum-list">${tops.length ? tops.map(t => {
 		const ps = getPosts(t.id), firstPost = ps[0] || {}, last = ps[ps.length - 1] || {};
 		const authorRole = getUserRole(db.users[safeKey(t.author)]);
