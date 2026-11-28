@@ -93,7 +93,22 @@ function refreshUI() {
 	if (document.getElementById('tab-subtab').style.display !== 'none' && activeSubtabId) { renderSubtabPosts(); updateSubtabLockUI(); }
 	renderStaff();
 }
-function renderExplorer()
+function renderExplorer() {
+	const curId = pathStack[pathStack.length - 1], curTitle = curId === 'root' ? 'Главная' : (db.nodes[curId]?.title || 'Вкладка');
+	document.getElementById('btn-back').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
+	document.getElementById('btn-new-subtab').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
+	document.getElementById('btn-new-topic').style.display = pathStack.length > 1 ? 'inline-block' : 'none';
+	document.getElementById('breadcrumbs').innerHTML = pathStack.map((id, i) => `<span style="cursor:pointer;color:${i === pathStack.length - 1 ? '#fff' : 'var(--muted)'}" onclick="jumpTo(${i})">${id === 'root' ? 'Главная' : (db.nodes[id]?.title || '')}</span>`).join(' / ');
+
+	if (curId === 'root') {
+		document.getElementById('explorer-content').innerHTML = getChildren('root').map(cat => `<section class="category-block"><div class="category-header" style="display:flex;justify-content:space-between;align-items:center;"><h2>${cat.title}</h2><button class="btn btn-login" style="padding:4px 10px;font-size:11px;" onclick="openSubModal('${cat.id}')">+ Вкладка</button></div><div class="forum-list">${renderNodes(getChildren(cat.id))}</div></section>`).join('');
+		return;
+	}
+
+	const subs = getChildren(curId), subtabs = getSubtabs(curId), tops = getTopics(curId);
+	let html = subs.length ? `<section class="category-block"><div class="category-header"><h2>📁 Вкладки: ${curTitle}</h2></div><div class="forum-list">${renderNodes(subs)}</div></section>` : '';
+	if (subtabs.length) html += `<section class="category-block"><div class="category-header"><h2>📄 Подвкладки (информация)</h2></div><div class="forum-list">${subtabs.map(st => `<div class="forum-item" onclick="openSubtab('${st.id}')"><div class="forum-icon ${st.closed ? '' : 'unread'}">${st.closed ? '🔒' : '📄'}</div><div class="forum-info"><span class="forum-title">${st.title}</span><p class="forum-desc">${st.closed ? 'Закрыто для ответов' : 'Нажмите, чтобы открыть'}</p></div><div class="forum-stats"><div><span>${st.closed ? 'Закрыто' : 'Открыто'}</span></div></div><div class="forum-last-post"><span class="last-post-title">Открыть →</span><div class="last-post-meta">${st.author || ''}</div></div></div>`).join('')}</div></section>`;
+
 	html += `<section class="category-block"><div class="category-header"><h2>📁 Темы раздела: ${curTitle}</h2></div><div class="forum-list">${tops.length ? tops.map(t => {
 		const ps = getPosts(t.id), firstPost = ps[0] || {}, last = ps[ps.length - 1] || {};
 		const authorRole = getUserRole(db.users[safeKey(t.author)]);
@@ -116,10 +131,6 @@ function renderExplorer()
 		</div>`;
 	}).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет. Создайте первую тему!</div>`}</div></section>`;
 
-	const subs = getChildren(curId), subtabs = getSubtabs(curId), tops = getTopics(curId);
-	let html = subs.length ? `<section class="category-block"><div class="category-header"><h2>📁 Вкладки: ${curTitle}</h2></div><div class="forum-list">${renderNodes(subs)}</div></section>` : '';
-	if (subtabs.length) html += `<section class="category-block"><div class="category-header"><h2>📄 Подвкладки (информация)</h2></div><div class="forum-list">${subtabs.map(st => `<div class="forum-item" onclick="openSubtab('${st.id}')"><div class="forum-icon ${st.closed ? '' : 'unread'}">${st.closed ? '🔒' : '📄'}</div><div class="forum-info"><span class="forum-title">${st.title}</span><p class="forum-desc">${st.closed ? 'Закрыто для ответов' : 'Нажмите, чтобы открыть'}</p></div><div class="forum-stats"><div><span>${st.closed ? 'Закрыто' : 'Открыто'}</span></div></div><div class="forum-last-post"><span class="last-post-title">Открыть →</span><div class="last-post-meta">${st.author || ''}</div></div></div>`).join('')}</div></section>`;
-	html += `<section class="category-block"><div class="category-header"><h2>💬 Темы вкладки</h2></div><div class="forum-list">${tops.length ? tops.map(t => { const ps = getPosts(t.id), last = ps[ps.length - 1] || {}; return `<div class="forum-item" onclick="openTopic('${t.id}')"><div class="forum-icon ${t.closed ? '' : 'unread'}">${t.closed ? '🔒' : '💬'}</div><div class="forum-info"><span class="forum-title">${t.closed ? '🔒 ' : ''}${t.title}</span><p class="forum-desc">Автор: ${t.author} ${t.closed ? '• Закрыто' : ''}</p></div><div class="forum-stats"><div><span>${ps.length}</span> сообщ.</div></div><div class="forum-last-post"><span class="last-post-title">${last.author || t.author}</span><div class="last-post-meta">${last.time || ''}</div></div></div>`; }).join('') : `<div class="widget-body" style="color:var(--muted);font-size:13px;">Тем пока нет.</div>`}</div></section>`;
 	document.getElementById('explorer-content').innerHTML = html;
 }
 
